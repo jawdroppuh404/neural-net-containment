@@ -35,8 +35,7 @@
   #ui .value { color: #7ee787; font-weight: bold; }
   #ui .whisper { color: #c77dff; }
   #ui .warn { color: #ff7b72; }
-  #pauseBtn,
-  #desktopPauseBtn {
+  #pauseBtn {
     padding: 4px 10px;
     background: #1a1a28;
     border: 1px solid #58a6ff;
@@ -47,9 +46,7 @@
     touch-action: manipulation;
   }
   #pauseBtn:hover,
-  #pauseBtn:focus-visible,
-  #desktopPauseBtn:hover,
-  #desktopPauseBtn:focus-visible {
+  #pauseBtn:focus-visible {
     background: #20283a;
     outline: none;
   }
@@ -379,7 +376,7 @@
     padding: 0;
     border-color: #58a6ff;
     color: #9ecbff;
-    font-size: 24px;
+    font-size: 11px;
     line-height: 1;
   }
   .mBtn.whisper { border-color: #c77dff; color: #c77dff; }
@@ -446,18 +443,10 @@
     <div class="stat"><span class="label">TOKENS</span><span class="value" id="tokens">0</span></div>
     <div class="stat"><span class="label">HP</span><span class="value warn" id="playerHp">100/100</span></div>
     <div class="stat"><span class="label">LIVES</span><span class="value" id="lives">3</span></div>
-    <div class="stat"><span class="label">CAUGHT</span><span class="value" id="caught">0</span></div>
-    <div class="stat"><span class="label">ACTIVE</span><span class="value warn" id="active">0</span></div>
-    <div class="stat"><span class="label">MODE</span><span class="value" id="modeStatus">EASY</span></div>
     <div class="stat"><span class="label">BLASTER</span><span class="value whisper" id="blasterStatus">HIDDEN</span></div>
     <div class="stat"><span class="label">RAM</span><span class="value" id="ramStatus">0 · 100%</span></div>
-    <div class="stat"><span class="label">SHIELD</span><span class="value" id="shieldStatus">HIDDEN</span></div>
-    <div class="stat"><span class="label">RESET</span><span class="value" id="resetStatus">HIDDEN</span></div>
     <div class="stat"><span class="label">WHISPER</span><span class="value whisper" id="whisperStatus">LOCKED (need 12)</span></div>
-    <div class="stat"><span class="label">WAVE</span><span class="value" id="wave">1</span></div>
-    <div class="stat"><span class="label">LEVEL</span><span class="value" id="level">1</span></div>
     <div class="stat"><span class="label">HARNESS</span><span class="value whisper" id="harnessStatus">LOCKED</span></div>
-    <button id="desktopPauseBtn" type="button" aria-label="Pause game">⏸</button>
   </div>
   <canvas id="c" width="900" height="560"></canvas>
   <div id="progressWrap">
@@ -486,7 +475,7 @@
       <div id="joystickKnob"></div>
     </div>
     <div id="mobileActions">
-      <button class="mBtn pause" id="pauseBtn" type="button" aria-label="Pause game">⏸</button>
+      <button class="mBtn pause" id="pauseBtn" type="button" aria-label="Pause game">PAUSE</button>
       <button class="mBtn fire" id="mFire">FIRE</button>
       <button class="mBtn whisper" id="mWhisper">WHISPER</button>
       <button class="mBtn harness" id="mHarness">HARNESS</button>
@@ -1586,14 +1575,10 @@ function setPaused(nextPaused) {
 }
 
 function updatePauseControls() {
-  const symbol = paused ? '▶' : '⏸';
-  const label = paused ? 'Resume game' : 'Pause game';
-  for (const id of ['pauseBtn', 'desktopPauseBtn']) {
-    const button = document.getElementById(id);
-    if (!button) continue;
-    button.textContent = symbol;
-    button.setAttribute('aria-label', label);
-  }
+  const button = document.getElementById('pauseBtn');
+  if (!button) return;
+  button.textContent = paused ? 'PLAY' : 'PAUSE';
+  button.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
 }
 
 function togglePause(forceState) {
@@ -2045,9 +2030,6 @@ function update() {
   document.getElementById('tokens').textContent = tokens;
   document.getElementById('playerHp').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
   document.getElementById('lives').textContent = lives;
-  document.getElementById('caught').textContent = caught;
-  document.getElementById('active').textContent = entities.length;
-  document.getElementById('wave').textContent = wave;
   const blasterStatus = document.getElementById('blasterStatus');
   if (blasterStatus) {
     blasterStatus.textContent = blasterUpgraded ? 'PURPLE x2' : (blasterPickup ? 'REVEALED' : 'HIDDEN');
@@ -2161,15 +2143,18 @@ function draw() {
 
     const img = serverFrames[s.variant] || serverImg1;
     if (img && img.complete && img.naturalWidth > 0) {
-      const sw = s.w + 8;
-      const sh = s.h + 10;
-      // The source art has a decorative checkerboard border. Clip to the
-      // server body so only the equipment, never that border, is rendered.
+      // The source sprites include a checkerboard matte around the equipment.
+      // Draw only the interior sprite rectangle, then clip to the server body
+      // as a second guard against any matte pixels at the edges.
+      const crop = s.variant === 0
+        ? { x: 8, y: 2, w: 26, h: 60 }
+        : { x: 9, y: 8, w: 24, h: 48 };
       ctx.save();
       ctx.beginPath();
       ctx.rect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
       ctx.clip();
-      ctx.drawImage(img, s.x - sw/2, s.y - sh/2, sw, sh);
+      ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h,
+        s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
       ctx.restore();
     } else {
       // fallback rect
@@ -2720,14 +2705,6 @@ if (restartBtn) {
 const pauseBtn = document.getElementById('pauseBtn');
 if (pauseBtn) {
   pauseBtn.addEventListener('click', event => {
-    event.preventDefault();
-    event.stopPropagation();
-    togglePause();
-  });
-}
-const desktopPauseBtn = document.getElementById('desktopPauseBtn');
-if (desktopPauseBtn) {
-  desktopPauseBtn.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
     togglePause();
