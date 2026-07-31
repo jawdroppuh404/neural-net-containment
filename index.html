@@ -110,6 +110,76 @@
     letter-spacing: 0;
   }
   #hardModeBtn { color: #ff7b72 !important; border-color: #7a3a42 !important; }
+  #leaderboardPanel {
+    width: min(520px, 100%);
+    margin: 14px auto 2px;
+    padding: 12px 14px;
+    background: rgba(18,18,26,0.82);
+    border: 1px solid #3a3a5a;
+    flex: 0 0 auto;
+  }
+  #leaderboardPanel h2 {
+    color: #f0abfc;
+    font-size: 14px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  #leaderboardList {
+    list-style: none;
+    width: 100%;
+    font-size: 12px;
+  }
+  #leaderboardList li {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    gap: 8px;
+    padding: 5px 4px;
+    border-top: 1px solid #222233;
+    text-align: left;
+  }
+  #leaderboardList .rank { color: #6a6a8a; }
+  #leaderboardList .name { color: #d0d0e0; overflow-wrap: anywhere; }
+  #leaderboardList .score { color: #7ee787; }
+  #leaderboardEmpty { color: #6a6a8a; font-size: 11px; }
+  #leaderboardEntry {
+    display: none;
+    position: fixed;
+    left: 50%;
+    top: 51%;
+    transform: translate(-50%, -50%);
+    z-index: 38;
+    width: min(360px, calc(100vw - 32px));
+    padding: 20px;
+    background: #12121a;
+    border: 2px solid #f0abfc;
+    text-align: center;
+    box-shadow: 0 0 24px rgba(217,70,239,0.35);
+  }
+  #leaderboardEntry.show { display: block; }
+  #leaderboardEntry h2 { color: #f0abfc; font-size: 17px; margin-bottom: 8px; }
+  #leaderboardEntry p { color: #a0a0b8; font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+  #leaderboardEntry input {
+    width: 100%;
+    padding: 11px;
+    background: #0a0a0f;
+    border: 1px solid #5a5a8a;
+    color: #fff;
+    font: 14px 'Courier New', monospace;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  #leaderboardEntry button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    border: 1px solid #7ee787;
+    background: #18251d;
+    color: #7ee787;
+    font: bold 13px 'Courier New', monospace;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #leaderboardEntryStatus { min-height: 16px; margin: 8px 0 0 !important; color: #ffb86c !important; }
   .harnessBtn.selected {
     outline: 2px solid #f0abfc;
     outline-offset: 2px;
@@ -154,6 +224,8 @@
     box-shadow: 0 0 20px rgba(248,81,73,0.35);
   }
   #restartBtn.show { display: block; }
+  #leaderboardEntry.show ~ #restartBtn,
+  body:has(#leaderboardEntry.show) #restartBtn { top: 78%; }
   #restartBtn:hover,
   #restartBtn:focus-visible {
     background: #2a1a28;
@@ -315,6 +387,8 @@
     <div class="stat"><span class="label">MODE</span><span class="value" id="modeStatus">EASY</span></div>
     <div class="stat"><span class="label">BLASTER</span><span class="value whisper" id="blasterStatus">HIDDEN</span></div>
     <div class="stat"><span class="label">RAM</span><span class="value" id="ramStatus">0 · 100%</span></div>
+    <div class="stat"><span class="label">SHIELD</span><span class="value" id="shieldStatus">HIDDEN</span></div>
+    <div class="stat"><span class="label">RESET</span><span class="value" id="resetStatus">HIDDEN</span></div>
     <div class="stat"><span class="label">WHISPER</span><span class="value whisper" id="whisperStatus">LOCKED (need 12)</span></div>
     <div class="stat"><span class="label">WAVE</span><span class="value" id="wave">1</span></div>
     <div class="stat"><span class="label">LEVEL</span><span class="value" id="level">1</span></div>
@@ -329,6 +403,13 @@
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
   <div id="msg"></div>
+  <div id="leaderboardEntry" role="dialog" aria-modal="true" aria-labelledby="leaderboardEntryTitle">
+    <h2 id="leaderboardEntryTitle">HARD MODE RECORD</h2>
+    <p id="leaderboardEntrySummary">You cleared 0 levels. Enter a nickname for the leaderboard.</p>
+    <input id="leaderboardNickname" type="text" maxlength="16" autocomplete="nickname" placeholder="NICKNAME" aria-label="Leaderboard nickname">
+    <button id="leaderboardSubmit" type="button">SUBMIT SCORE</button>
+    <p id="leaderboardEntryStatus" aria-live="polite"></p>
+  </div>
   <button id="restartBtn" type="button">RESTART</button>
 
   <div id="mobileControls">
@@ -345,9 +426,9 @@
   <div id="harnessDialog" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#12121a;border:2px solid #5a5a8a;padding:24px 32px;z-index:20;text-align:center;min-width:320px;">
     <h2 style="color:#c77dff;margin-bottom:16px;font-size:18px;letter-spacing:2px;">HARNESS PROTOCOL</h2>
     <p style="color:#a0a0b8;font-size:12px;margin-bottom:18px;">Joystick: select · FIRE: confirm</p>
-    <button class="harnessBtn" data-mode="strengthen" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#7ee787;font-family:inherit;cursor:pointer;">1. STRENGTHEN — +damage 10s</button>
-    <button class="harnessBtn" data-mode="loop" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#58a6ff;font-family:inherit;cursor:pointer;">2. LOOP — entities circle 10s</button>
-    <button class="harnessBtn" data-mode="selfdestruct" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#f85149;font-family:inherit;cursor:pointer;">3. SELF-DESTRUCT — free-for-all 15s</button>
+    <button class="harnessBtn" data-mode="strengthen" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#7ee787;font-family:inherit;cursor:pointer;">1. STRENGTHEN — 20 tokens · +damage 10s</button>
+    <button class="harnessBtn" data-mode="loop" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#58a6ff;font-family:inherit;cursor:pointer;">2. LOOP — 30 tokens · entities circle 10s</button>
+    <button class="harnessBtn" data-mode="selfdestruct" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#f85149;font-family:inherit;cursor:pointer;">3. SELF-DESTRUCT — 50 tokens · free-for-all 15s</button>
     <button id="harnessCancel" style="margin-top:12px;padding:6px 16px;background:transparent;border:1px solid #3a3a5a;color:#6a6a8a;font-family:inherit;cursor:pointer;font-size:12px;">Cancel (Esc)</button>
   </div>
 
@@ -361,10 +442,15 @@
     Easy Mode auto-aims when the joystick is released.<br>
     Each catch yields tokens. Every 100 tokens grants an extra life.<br>
     At 12 tokens you unlock <b>WHISPER</b> (Space).<br>
-    Each level hides a double-damage blaster and a compounding +5% RAM speed upgrade.</p>
+    Each level hides a double-damage blaster, compounding +5% RAM, a 15-second shield, and a 100-token RESET button.</p>
     <p class="hint">Whisper (Space) calms entities. Destroy 3 servers to unlock HARNESS (H).<br>
     Easy Mode starts with 3 lives. Hard Mode starts with 1 and disables auto-aim.<br>
-    5 levels · Level N ends with N Shoggoths. Servers are solid barriers.</p>
+    Easy Mode has 5 levels. Hard Mode continues until Game Over and records cleared levels.</p>
+    <section id="leaderboardPanel" aria-labelledby="leaderboardTitle">
+      <h2 id="leaderboardTitle">HARD MODE LEADERBOARD</h2>
+      <ol id="leaderboardList"></ol>
+      <div id="leaderboardEmpty">Loading records…</div>
+    </section>
     <div id="modeOptions">
       <button id="easyModeBtn" type="button">
         <strong>EASY MODE</strong>
@@ -445,6 +531,12 @@ let blasterUpgraded = false;
 let blasterPickup = null;
 let ramUpgrades = 0;
 let ramPickup = null;
+let shieldPickup = null;
+let shieldTimer = 0;
+let resetPickup = null;
+let hardLevelsCompleted = 0;
+let leaderboardSubmitted = false;
+const HARNESS_COSTS = { strengthen: 20, loop: 30, selfdestruct: 50 };
 const BASE_PLAYER_SPEED = 3.2;
 
 const player = {
@@ -479,6 +571,8 @@ function addServer(x, y, variant) {
     collapsed: false,
     hasBlasterUpgrade: false,
     hasRamUpgrade: false,
+    hasShieldUpgrade: false,
+    hasResetUpgrade: false,
     variant: variant % 2
   });
 }
@@ -546,18 +640,26 @@ function hideLevelUpgrades() {
   blasterUpgraded = false;
   blasterPickup = null;
   ramPickup = null;
+  shieldPickup = null;
+  shieldTimer = 0;
+  resetPickup = null;
   for (const server of servers) {
     server.hasBlasterUpgrade = false;
     server.hasRamUpgrade = false;
+    server.hasShieldUpgrade = false;
+    server.hasResetUpgrade = false;
   }
   if (!servers.length) return;
-  const blasterIndex = Math.floor(Math.random() * servers.length);
-  let ramIndex = Math.floor(Math.random() * servers.length);
-  if (servers.length > 1 && ramIndex === blasterIndex) {
-    ramIndex = (ramIndex + 1 + Math.floor(Math.random() * (servers.length - 1))) % servers.length;
+  const indices = servers.map((_, index) => index);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  servers[blasterIndex].hasBlasterUpgrade = true;
-  servers[ramIndex].hasRamUpgrade = true;
+  const pick = slot => indices[slot % indices.length];
+  servers[pick(0)].hasBlasterUpgrade = true;
+  servers[pick(1)].hasRamUpgrade = true;
+  servers[pick(2)].hasShieldUpgrade = true;
+  servers[pick(3)].hasResetUpgrade = true;
 }
 
 // ── Collision ──────────────────────────────────────────
@@ -936,6 +1038,12 @@ function awardTokens(amount) {
   }
 }
 
+function spendTokens(amount) {
+  if (tokens < amount) return false;
+  tokens -= amount;
+  return true;
+}
+
 function applyRamUpgrade() {
   ramUpgrades++;
   player.speed = BASE_PLAYER_SPEED * Math.pow(1.05, ramUpgrades);
@@ -947,6 +1055,9 @@ function resetAllUpgrades() {
   blasterPickup = null;
   ramUpgrades = 0;
   ramPickup = null;
+  shieldPickup = null;
+  shieldTimer = 0;
+  resetPickup = null;
   player.speed = BASE_PLAYER_SPEED;
   playerDamage = 1;
 }
@@ -1005,6 +1116,7 @@ function loseLife(reason) {
     gameOverReason = reason || 'Marlboro Man lost all remaining lives.';
     resetAllUpgrades();
     showRestartButton();
+    if (gameMode === 'hard') showLeaderboardEntry();
     showMsg('No lives remaining — containment failed');
     return true;
   }
@@ -1023,7 +1135,7 @@ function loseLife(reason) {
 }
 
 function damagePlayer(amount, sourceName) {
-  if (playerInvulnerability > 0 || gameOver) return false;
+  if (shieldTimer > 0 || playerInvulnerability > 0 || gameOver) return false;
   player.hp = Math.max(0, player.hp - amount);
   playerInvulnerability = 45;
   addParticles(player.x, player.y, '#ff7b72', 10);
@@ -1088,6 +1200,14 @@ function damageServer(server, damage) {
       ramPickup = { x: server.x, y: server.y, r: 12, pulse: 0 };
       showMsg('RAM REVEALED — collect for +5% speed');
     }
+    if (server.hasShieldUpgrade && !shieldPickup) {
+      shieldPickup = { x: server.x, y: server.y, r: 14, pulse: 0 };
+      showMsg('SHIELD REVEALED — 15 seconds of total protection');
+    }
+    if (server.hasResetUpgrade && !resetPickup) {
+      resetPickup = { x: server.x, y: server.y, r: 14, pulse: 0 };
+      showMsg('RESET BUTTON REVEALED — collect 100 tokens');
+    }
   } else {
     showMsg(`Server HP ${Math.ceil(server.hp)}/${server.maxHp}`);
   }
@@ -1135,6 +1255,117 @@ function hideRestartButton() {
   if (button) button.classList.remove('show');
 }
 
+function renderLeaderboard(entries) {
+  const list = document.getElementById('leaderboardList');
+  const empty = document.getElementById('leaderboardEmpty');
+  if (!list || !empty) return;
+  list.textContent = '';
+  const safeEntries = Array.isArray(entries) ? entries.slice(0, 10) : [];
+  empty.style.display = safeEntries.length ? 'none' : 'block';
+  empty.textContent = 'No Hard Mode records yet. Be the first.';
+  safeEntries.forEach((entry, index) => {
+    const item = document.createElement('li');
+    const rank = document.createElement('span');
+    const name = document.createElement('span');
+    const score = document.createElement('span');
+    rank.className = 'rank';
+    name.className = 'name';
+    score.className = 'score';
+    rank.textContent = `${index + 1}.`;
+    name.textContent = String(entry.nickname || 'ANON').slice(0, 16);
+    const levels = Math.max(0, Number(entry.levels) || 0);
+    score.textContent = `${levels} ${levels === 1 ? 'LEVEL' : 'LEVELS'}`;
+    item.append(rank, name, score);
+    list.appendChild(item);
+  });
+}
+
+function getLocalLeaderboard() {
+  try {
+    return JSON.parse(localStorage.getItem('nncHardLeaderboard') || '[]');
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveLocalLeaderboard(nickname, levels) {
+  const entries = getLocalLeaderboard();
+  const normalized = nickname.toUpperCase();
+  const existing = entries.find(entry => String(entry.nickname).toUpperCase() === normalized);
+  if (existing) existing.levels = Math.max(Number(existing.levels) || 0, levels);
+  else entries.push({ nickname: normalized, levels });
+  entries.sort((a, b) => b.levels - a.levels || a.nickname.localeCompare(b.nickname));
+  const top = entries.slice(0, 10);
+  try { localStorage.setItem('nncHardLeaderboard', JSON.stringify(top)); } catch (_) {}
+  return top;
+}
+
+async function loadLeaderboard() {
+  try {
+    const response = await fetch('/api/leaderboard', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Leaderboard unavailable');
+    const data = await response.json();
+    renderLeaderboard(data.entries);
+  } catch (_) {
+    renderLeaderboard(getLocalLeaderboard());
+  }
+}
+
+function showLeaderboardEntry() {
+  const panel = document.getElementById('leaderboardEntry');
+  const summary = document.getElementById('leaderboardEntrySummary');
+  const input = document.getElementById('leaderboardNickname');
+  const status = document.getElementById('leaderboardEntryStatus');
+  if (!panel || !summary || !input || !status) return;
+  leaderboardSubmitted = false;
+  const levels = Math.max(0, hardLevelsCompleted);
+  summary.textContent = levels > 0
+    ? `You cleared ${levels} ${levels === 1 ? 'level' : 'levels'}. Enter a nickname for the leaderboard.`
+    : 'Clear at least one level to enter the Hard Mode leaderboard.';
+  input.disabled = levels < 1;
+  document.getElementById('leaderboardSubmit').disabled = levels < 1;
+  status.textContent = '';
+  panel.classList.add('show');
+}
+
+function hideLeaderboardEntry() {
+  const panel = document.getElementById('leaderboardEntry');
+  if (panel) panel.classList.remove('show');
+}
+
+async function submitLeaderboardScore() {
+  if (leaderboardSubmitted || hardLevelsCompleted < 1) return;
+  const input = document.getElementById('leaderboardNickname');
+  const button = document.getElementById('leaderboardSubmit');
+  const status = document.getElementById('leaderboardEntryStatus');
+  const nickname = String(input.value || '').trim().replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 16);
+  if (!nickname) {
+    status.textContent = 'Enter a nickname first.';
+    input.focus();
+    return;
+  }
+  button.disabled = true;
+  status.textContent = 'Submitting record…';
+  try {
+    const response = await fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nickname, levels: hardLevelsCompleted })
+    });
+    if (!response.ok) throw new Error('Shared leaderboard unavailable');
+    const data = await response.json();
+    leaderboardSubmitted = true;
+    renderLeaderboard(data.entries);
+    status.textContent = data.ranked
+      ? `Record saved — rank #${data.rank}.`
+      : 'Record saved. Keep pushing for the top 10.';
+  } catch (_) {
+    leaderboardSubmitted = true;
+    renderLeaderboard(saveLocalLeaderboard(nickname, hardLevelsCompleted));
+    status.textContent = 'Shared board unavailable — score saved on this device.';
+  }
+}
+
 function restartGame(e) {
   if (e) {
     try { e.preventDefault(); } catch (_) {}
@@ -1149,6 +1380,8 @@ function restartGame(e) {
   caught = 0;
   wave = 1;
   level = 1;
+  hardLevelsCompleted = 0;
+  leaderboardSubmitted = false;
   whisperUnlocked = false;
   whisperCooldown = 0;
   messageTimer = 0;
@@ -1177,6 +1410,7 @@ function restartGame(e) {
   resetJoy();
   resetAllUpgrades();
   document.getElementById('harnessDialog').style.display = 'none';
+  hideLeaderboardEntry();
   hideRestartButton();
   startLevel(1);
 }
@@ -1194,6 +1428,7 @@ function openHarness() {
   mobileFireHeld = false;
   harnessJoyLatched = Math.abs(joy.dy) > 0.3;
   setHarnessSelection(0);
+  updateHarnessAffordability();
   document.getElementById('harnessDialog').style.display = 'block';
 }
 
@@ -1205,6 +1440,13 @@ function closeHarness() {
 }
 
 function applyHarness(mode) {
+  const cost = HARNESS_COSTS[mode];
+  if (!cost) return;
+  if (!spendTokens(cost)) {
+    showMsg(`${mode.toUpperCase()} requires ${cost} tokens — you have ${tokens}`);
+    updateHarnessAffordability();
+    return;
+  }
   closeHarness();
   if (mode === 'strengthen') {
     playerDamage = 3;
@@ -1223,6 +1465,15 @@ function applyHarness(mode) {
     selfDestructTimer = 900; // 15s
     showMsg('SELF-DESTRUCT — free-for-all 15s');
   }
+}
+
+function updateHarnessAffordability() {
+  harnessButtons.forEach(button => {
+    const cost = HARNESS_COSTS[button.dataset.mode] || 0;
+    const affordable = tokens >= cost;
+    button.style.opacity = affordable ? '1' : '0.45';
+    button.setAttribute('aria-disabled', affordable ? 'false' : 'true');
+  });
 }
 
 // ── Update ─────────────────────────────────────────────
@@ -1277,6 +1528,28 @@ function update() {
       ramPickup = null;
       applyRamUpgrade();
     }
+  }
+  if (shieldPickup) {
+    shieldPickup.pulse += 0.12;
+    if (Math.hypot(player.x - shieldPickup.x, player.y - shieldPickup.y) <=
+        player.r + shieldPickup.r + 4) {
+      shieldPickup = null;
+      shieldTimer = 900;
+      showMsg('SHIELD ACTIVE — invulnerable for 15 seconds');
+    }
+  }
+  if (resetPickup) {
+    resetPickup.pulse += 0.12;
+    if (Math.hypot(player.x - resetPickup.x, player.y - resetPickup.y) <=
+        player.r + resetPickup.r + 4) {
+      resetPickup = null;
+      awardTokens(100);
+      showMsg('RESET BUTTON — +100 tokens');
+    }
+  }
+  if (shieldTimer > 0) {
+    shieldTimer--;
+    if (shieldTimer === 0) showMsg('SHIELD expired');
   }
 
   // A separate FIRE pointer allows simultaneous joystick movement and shooting.
@@ -1428,12 +1701,21 @@ function update() {
     ent.y = Math.max(25, Math.min(H-25, ent.y));
   }
 
-  // Entity contact damages the player, with a short grace period between hits.
-  if (playerInvulnerability <= 0) {
-    const attacker = entities.find(ent =>
+  // Shielded contact instantly destroys entities; otherwise contact damages the player.
+  const touchingEntities = entities.filter(ent =>
+    !ent.caught &&
+    ent.hp > 0 &&
+    Math.hypot(ent.x - player.x, ent.y - player.y) <= player.r + ent.r * 0.7
+  );
+  if (shieldTimer > 0) {
+    for (const attacker of touchingEntities) {
+      damageEntity(attacker, attacker.hp);
+      addParticles(attacker.x, attacker.y, '#58a6ff', 16);
+    }
+  } else if (playerInvulnerability <= 0) {
+    const attacker = touchingEntities.find(ent =>
       !ent.caught &&
-      ent.hp > 0 &&
-      Math.hypot(ent.x - player.x, ent.y - player.y) <= player.r + ent.r * 0.7
+      ent.hp > 0
     );
     if (attacker) {
       const type = TYPES[attacker.type];
@@ -1487,7 +1769,8 @@ function update() {
 
   // win / lose
   if (shoggothSpawned && !entities.some(e => e.type === 'shoggoth')) {
-    if (level < 5) {
+    if (gameMode === 'hard') hardLevelsCompleted = Math.max(hardLevelsCompleted, level);
+    if (gameMode === 'hard' || level < 5) {
       showMsg(`Level ${level} cleared — advancing…`);
       levelTransition = 120;
       entities.length = 0;
@@ -1538,6 +1821,15 @@ function update() {
   if (ramStatus) {
     ramStatus.textContent = `${ramUpgrades} · ${Math.round(Math.pow(1.05, ramUpgrades) * 100)}%`;
   }
+  const shieldStatus = document.getElementById('shieldStatus');
+  if (shieldStatus) {
+    shieldStatus.textContent = shieldTimer > 0
+      ? `ACTIVE ${Math.ceil(shieldTimer / 60)}s`
+      : (shieldPickup ? 'REVEALED' : 'HIDDEN');
+    shieldStatus.style.color = shieldTimer > 0 ? '#58a6ff' : '#7ee787';
+  }
+  const resetStatus = document.getElementById('resetStatus');
+  if (resetStatus) resetStatus.textContent = resetPickup ? 'REVEALED' : 'HIDDEN';
   const lvlEl = document.getElementById('level');
   if (lvlEl) lvlEl.textContent = level;
   const hs = document.getElementById('harnessStatus');
@@ -1712,6 +2004,57 @@ function draw() {
     ctx.font = 'bold 9px Courier New';
     ctx.textAlign = 'center';
     ctx.fillText('RAM +5%', ramPickup.x, ramPickup.y - 19);
+  }
+
+  // Revealed shield — grants 15 seconds of total protection.
+  if (shieldPickup) {
+    const pulse = 1 + Math.sin(shieldPickup.pulse) * 0.12;
+    ctx.save();
+    ctx.translate(shieldPickup.x, shieldPickup.y);
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = '#58a6ff';
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = 'rgba(88,166,255,0.32)';
+    ctx.strokeStyle = '#9ecbff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -16);
+    ctx.lineTo(14, -10);
+    ctx.lineTo(11, 7);
+    ctx.quadraticCurveTo(0, 18, -11, 7);
+    ctx.lineTo(-14, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#9ecbff';
+    ctx.font = 'bold 9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('SHIELD 15s', shieldPickup.x, shieldPickup.y - 24);
+  }
+
+  // Revealed RESET button — instantly awards 100 spendable tokens.
+  if (resetPickup) {
+    const pulse = 1 + Math.sin(resetPickup.pulse) * 0.1;
+    ctx.save();
+    ctx.translate(resetPickup.x, resetPickup.y);
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = '#ffb86c';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#4a1f17';
+    ctx.strokeStyle = '#ffb86c';
+    ctx.lineWidth = 2;
+    ctx.fillRect(-18, -11, 36, 22);
+    ctx.strokeRect(-18, -11, 36, 22);
+    ctx.fillStyle = '#f85149';
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#ffb86c';
+    ctx.font = 'bold 9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('RESET +100', resetPickup.x, resetPickup.y - 20);
   }
 
   // entities
@@ -1928,9 +2271,18 @@ function draw() {
   // neural net indicator ring
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.r + 12, 0, Math.PI*2);
-  ctx.strokeStyle = 'rgba(126,231,135,0.35)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = shieldTimer > 0 ? 'rgba(88,166,255,0.95)' : 'rgba(126,231,135,0.35)';
+  ctx.lineWidth = shieldTimer > 0 ? 4 : 1.5;
   ctx.stroke();
+  if (shieldTimer > 0) {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r + 20 + Math.sin(shieldTimer * 0.12) * 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(88,166,255,0.13)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(158,203,255,0.65)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   // player HP bar
   {
@@ -2004,7 +2356,12 @@ function draw() {
     ctx.fillStyle = '#a0a0b8';
     ctx.font = '14px Courier New';
     ctx.fillText(win ? 'All 5 sectors stable. Training continues.' : (gameOverReason || 'All lives exhausted.'), W/2, H/2 + 16);
-    ctx.fillText(win ? 'Refresh to play again' : 'Select RESTART to try again', W/2, H/2 + 44);
+    if (!win && gameMode === 'hard') {
+      ctx.fillText(`Hard Mode record: ${hardLevelsCompleted} levels cleared`, W/2, H/2 + 44);
+      ctx.fillText('Submit your nickname or select RESTART', W/2, H/2 + 68);
+    } else {
+      ctx.fillText(win ? 'Refresh to play again' : 'Select RESTART to try again', W/2, H/2 + 44);
+    }
   }
 }
 
@@ -2055,8 +2412,11 @@ function beginGame(e, selectedMode = 'easy') {
   try {
     gameMode = selectedMode === 'hard' ? 'hard' : 'easy';
     lives = gameMode === 'hard' ? 1 : 3;
+    hardLevelsCompleted = 0;
+    leaderboardSubmitted = false;
     gameOverReason = '';
     resetAllUpgrades();
+    hideLeaderboardEntry();
     hideRestartButton();
     const ov = document.getElementById('overlay');
     if (ov) {
@@ -2103,6 +2463,21 @@ if (restartBtn) {
   restartBtn.addEventListener('pointerup', restartGame, { passive: false });
 }
 
+const leaderboardSubmit = document.getElementById('leaderboardSubmit');
+if (leaderboardSubmit) leaderboardSubmit.addEventListener('click', submitLeaderboardScore);
+const leaderboardNickname = document.getElementById('leaderboardNickname');
+if (leaderboardNickname) {
+  leaderboardNickname.addEventListener('keydown', event => {
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitLeaderboardScore();
+    }
+  });
+  leaderboardNickname.addEventListener('keyup', event => event.stopPropagation());
+}
+
+loadLeaderboard();
 loop();
 </script>
 </body>
