@@ -50,7 +50,10 @@ module.exports = async function leaderboardHandler(req, res) {
       const results = await redisPipeline([
         ['ZRANGE', LEADERBOARD_KEY, '0', '9', 'REV', 'WITHSCORES']
       ]);
-      return res.status(200).json({ entries: parseEntries(results[0] && results[0].result) });
+      return res.status(200).json({
+        storage: 'shared',
+        entries: parseEntries(results[0] && results[0].result)
+      });
     }
 
     if (req.method === 'POST') {
