@@ -188,7 +188,7 @@
     -webkit-user-select: none;
   }
   .mBtn:active { transform: scale(0.92); }
-  .mBtn.fire { border-color: #7ee787; color: #7ee787; }
+  .mBtn.fire { border-color: #7ee787; color: #7ee787; touch-action: none; }
   .mBtn.whisper { border-color: #c77dff; color: #c77dff; }
   .mBtn.harness { border-color: #58a6ff; color: #58a6ff; }
   .mBtn.ready {
@@ -263,7 +263,8 @@
     Residual compute sometimes collapses into entities.</p>
     <p><b>Goblins</b> · <b>Ghouls</b> · <b>Demons</b> · and eventually a <b>Shoggoth</b>.</p>
     <p>Move with <b>WASD</b> or arrows. Click to aim and fire the neural net.<br>
-    On mobile, the joystick sets your direction and <b>FIRE</b> shoots forward.<br>
+    On mobile, steer with one finger and hold <b>FIRE</b> with another.<br>
+    Release the joystick to auto-aim at the nearest target.<br>
     Each catch yields tokens. At 12 tokens you unlock <b>WHISPER</b> (Space).</p>
     <p class="hint">Whisper (Space) calms entities. Destroy 3 servers to unlock HARNESS (H).<br>
     5 levels · Level N ends with N Shoggoths. Servers are solid barriers.</p>
@@ -643,11 +644,79 @@ document.getElementById('harnessCancel').addEventListener('click', closeHarness)
 const mFire = document.getElementById('mFire');
 const mWhisper = document.getElementById('mWhisper');
 const mHarnessBtn = document.getElementById('mHarness');
-if (mFire) mFire.addEventListener('click', e => {
+let mobileFireHeld = false;
+let mobileFirePointerId = null;
+let mobileFireCooldown = 0;
+const MOBILE_FIRE_INTERVAL = 8;
+
+function hasJoystickInput() {
+  return joy.active && Math.hypot(joy.dx, joy.dy) > 0.12;
+}
+
+function findAutoAimTarget() {
+  let target = null;
+  let bestDistance = Infinity;
+  for (const ent of entities) {
+    if (ent.caught || ent.hp <= 0) continue;
+    const distance = Math.hypot(ent.x - player.x, ent.y - player.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      target = ent;
+    }
+  }
+  if (target) return target;
+
+  for (const server of servers) {
+    if (server.collapsed) continue;
+    const distance = Math.hypot(server.x - player.x, server.y - player.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      target = server;
+    }
+  }
+  return target;
+}
+
+function fireMobileShot() {
+  if (!hasJoystickInput()) {
+    const target = findAutoAimTarget();
+    if (target) setPlayerFacing(target.x - player.x, target.y - player.y);
+  }
+  fireForward();
+}
+
+function beginMobileFire(e) {
   e.preventDefault();
   if (!running || gameOver || harnessOpen) return;
-  fireForward();
-});
+  mobileFireHeld = true;
+  mobileFirePointerId = e.pointerId;
+  if (mFire.setPointerCapture && e.pointerId !== undefined) {
+    try { mFire.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+  fireMobileShot();
+  mobileFireCooldown = MOBILE_FIRE_INTERVAL;
+}
+
+function endMobileFire(e) {
+  if (mobileFirePointerId !== null &&
+      e.pointerId !== undefined &&
+      e.pointerId !== mobileFirePointerId) return;
+  mobileFireHeld = false;
+  mobileFirePointerId = null;
+}
+
+if (mFire) {
+  mFire.addEventListener('pointerdown', beginMobileFire, { passive: false });
+  // Preserve keyboard/switch-control activation without doubling pointer shots.
+  mFire.addEventListener('click', e => {
+    if (e.detail !== 0) return;
+    e.preventDefault();
+    if (!running || gameOver || harnessOpen) return;
+    fireMobileShot();
+  });
+}
+window.addEventListener('pointerup', endMobileFire);
+window.addEventListener('pointercancel', endMobileFire);
 if (mWhisper) mWhisper.addEventListener('click', e => {
   e.preventDefault();
   if (!running || gameOver || harnessOpen) return;
@@ -819,6 +888,13 @@ function update() {
   }
   player.x = Math.max(20, Math.min(W-20, player.x));
   player.y = Math.max(20, Math.min(H-20, player.y));
+
+  // A separate FIRE pointer allows simultaneous joystick movement and shooting.
+  if (mobileFireCooldown > 0) mobileFireCooldown--;
+  if (mobileFireHeld && mobileFireCooldown <= 0) {
+    fireMobileShot();
+    mobileFireCooldown = MOBILE_FIRE_INTERVAL;
+  }
 
   // projectiles damage the first entity or intact server they touch
   for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -1464,6 +1540,7 @@ function startLevel(lvl) {
   entities.length = 0;
   particles.length = 0;
   projectiles.length = 0;
+  mobileFireCooldown = 0;
   // keep serversDestroyed / harness across levels
   strengthenTimer = 0;
   loopTimer = 0;
