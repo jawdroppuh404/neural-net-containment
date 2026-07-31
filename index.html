@@ -35,7 +35,8 @@
   #ui .value { color: #7ee787; font-weight: bold; }
   #ui .whisper { color: #c77dff; }
   #ui .warn { color: #ff7b72; }
-  #pauseBtn {
+  #pauseBtn,
+  #desktopPauseBtn {
     padding: 4px 10px;
     background: #1a1a28;
     border: 1px solid #58a6ff;
@@ -46,7 +47,9 @@
     touch-action: manipulation;
   }
   #pauseBtn:hover,
-  #pauseBtn:focus-visible {
+  #pauseBtn:focus-visible,
+  #desktopPauseBtn:hover,
+  #desktopPauseBtn:focus-visible {
     background: #20283a;
     outline: none;
   }
@@ -372,6 +375,13 @@
   }
   .mBtn:active { transform: scale(0.92); }
   .mBtn.fire { border-color: #7ee787; color: #7ee787; touch-action: none; }
+  #pauseBtn.mBtn.pause {
+    padding: 0;
+    border-color: #58a6ff;
+    color: #9ecbff;
+    font-size: 24px;
+    line-height: 1;
+  }
   .mBtn.whisper { border-color: #c77dff; color: #c77dff; }
   .mBtn.harness { border-color: #58a6ff; color: #58a6ff; }
   .mBtn.ready {
@@ -400,6 +410,11 @@
     canvas { width: 100vw !important; height: auto !important; max-height: 70vh; flex: 0 0 auto; }
   }
   @media (max-height: 760px), (max-width: 600px) {
+    #msg {
+      bottom: 172px;
+      width: min(420px, calc(100vw - 40px));
+      text-align: center;
+    }
     #overlay {
       justify-content: flex-start;
       padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
@@ -442,7 +457,7 @@
     <div class="stat"><span class="label">WAVE</span><span class="value" id="wave">1</span></div>
     <div class="stat"><span class="label">LEVEL</span><span class="value" id="level">1</span></div>
     <div class="stat"><span class="label">HARNESS</span><span class="value whisper" id="harnessStatus">LOCKED</span></div>
-    <button id="pauseBtn" type="button" aria-label="Pause game">PAUSE</button>
+    <button id="desktopPauseBtn" type="button" aria-label="Pause game">⏸</button>
   </div>
   <canvas id="c" width="900" height="560"></canvas>
   <div id="progressWrap">
@@ -471,6 +486,7 @@
       <div id="joystickKnob"></div>
     </div>
     <div id="mobileActions">
+      <button class="mBtn pause" id="pauseBtn" type="button" aria-label="Pause game">⏸</button>
       <button class="mBtn fire" id="mFire">FIRE</button>
       <button class="mBtn whisper" id="mWhisper">WHISPER</button>
       <button class="mBtn harness" id="mHarness">HARNESS</button>
@@ -620,6 +636,140 @@ function addServer(x, y, variant) {
   });
 }
 
+function addExtendedLevelLayout(lvl) {
+  const cx = W / 2;
+  const cy = H / 2;
+  const add = (x, y, variant = 0) => addServer(x, y, variant);
+  const ring = (count, rx, ry, centerX = cx, centerY = cy, start = 0) => {
+    for (let i = 0; i < count; i++) {
+      const angle = start + (i / count) * Math.PI * 2;
+      add(centerX + Math.cos(angle) * rx, centerY + Math.sin(angle) * ry, i);
+    }
+  };
+  const line = (x, y, dx, dy, count, variant = 0) => {
+    for (let i = 0; i < count; i++) add(x + dx * i, y + dy * i, variant + i);
+  };
+
+  switch (lvl) {
+    case 6: // Zigzag lanes
+      for (let row = 0; row < 5; row++) {
+        const offset = row % 2 ? 68 : 0;
+        for (let col = 0; col < 6; col++) {
+          const x = 90 + offset + col * 135;
+          if (x < W - 40) add(x, 70 + row * 105, row + col);
+        }
+      }
+      break;
+    case 7: // Vertical weave
+      for (let col = 0; col < 7; col++) {
+        const offset = col % 2 ? 52 : 0;
+        for (let row = 0; row < 4; row++) {
+          const y = 72 + offset + row * 112;
+          if (y < H - 35) add(92 + col * 119, y, row + col);
+        }
+      }
+      break;
+    case 8: // Diamond lattice
+      [[450,70],[330,125],[570,125],[210,215],[450,215],[690,215],
+       [330,305],[570,305],[90,385],[330,405],[570,405],[810,385],
+       [210,495],[450,495],[690,495]].forEach(([x,y], i) => add(x,y,i));
+      break;
+    case 9: // Four chambers with offset gates
+      line(100, 86, 140, 0, 6, 0); line(100, 474, 140, 0, 6, 1);
+      line(100, 180, 0, 100, 3, 2); line(800, 180, 0, 100, 3, 3);
+      line(300, 188, 0, 138, 3, 4); line(600, 188, 0, 138, 3, 5);
+      break;
+    case 10: // Expanding spiral
+      [[450,80],[590,80],[730,80],[730,200],[730,320],[730,440],[590,440],[450,440],
+       [310,440],[170,440],[170,320],[170,200],[170,80],[310,80],[310,180],[590,180],
+       [590,340],[310,340]].forEach(([x,y], i) => add(x,y,i));
+      break;
+    case 11: // Twin U corridors
+      line(100, 100, 120, 0, 3, 0); line(100, 180, 0, 150, 2, 3); line(100, 400, 120, 0, 3, 6);
+      line(800, 100, -120, 0, 3, 1); line(800, 180, 0, 150, 2, 4); line(800, 400, -120, 0, 3, 7);
+      line(450, 80, 0, 120, 4, 2);
+      break;
+    case 12: // Concentric squares
+      [[120,90],[450,90],[780,90],[780,280],[780,470],[450,470],[120,470],[120,280],
+       [260,170],[450,170],[640,170],[640,390],[450,390],[260,390],[260,280],[640,280],
+       [450,280]].forEach(([x,y], i) => add(x,y,i));
+      break;
+    case 13: // Double diagonal bridge
+      for (let i = 0; i < 6; i++) {
+        add(110 + i * 135, 92 + i * 72, i);
+        add(110 + i * 135, 490 - i * 88, i + 6);
+      }
+      break;
+    case 14: // Serpentine S
+      line(100, 85, 140, 0, 6, 0); line(800, 195, -140, 0, 6, 6);
+      line(100, 305, 140, 0, 6, 12); line(800, 415, -140, 0, 6, 18);
+      break;
+    case 15: // Pinwheel
+      line(420, 70, 0, 105, 4, 0); line(500, 490, 0, -105, 4, 4);
+      line(90, 280, 120, 0, 3, 8); line(810, 280, -120, 0, 3, 12);
+      [[270,160],[630,160],[270,400],[630,400]].forEach(([x,y], i) => add(x,y,i+16));
+      break;
+    case 16: // Staggered blocks
+      for (let block = 0; block < 3; block++) {
+        const x = 150 + block * 300;
+        add(x, 105, block); add(x + 90, 105, block + 3);
+        add(x + 45, 280, block + 6); add(x, 455, block + 9); add(x + 90, 455, block + 12);
+      }
+      break;
+    case 17: // Central hub and spokes
+      add(cx, cy, 0); ring(8, 190, 145, cx, cy, Math.PI / 8);
+      line(450, 70, 0, 90, 2, 10); line(450, 490, 0, -90, 2, 13);
+      break;
+    case 18: // Offset canyon walls
+      for (let i = 0; i < 4; i++) {
+        add(110, 90 + i * 125, i); add(250, 150 + i * 125, i + 4);
+        add(650, 90 + i * 125, i + 8); add(790, 150 + i * 125, i + 12);
+      }
+      line(380, 95, 0, 125, 3, 16); line(520, 155, 0, 125, 3, 19);
+      break;
+    case 19: // Octagonal arena with gates
+      ring(12, 300, 205, cx, cy, Math.PI / 12);
+      [[450,160],[450,400],[300,280],[600,280]].forEach(([x,y], i) => add(x,y,i+12));
+      break;
+    case 20: // Four zigzag bridges
+      for (let bridge = 0; bridge < 4; bridge++) {
+        const y = 82 + bridge * 132;
+        for (let i = 0; i < 5; i++) add(105 + i * 175, y + (i % 2 ? 38 : 0), bridge * 5 + i);
+      }
+      break;
+    case 21: // Five-point star and anchors
+      ring(10, 235, 190, cx, cy, -Math.PI / 2);
+      [[450,160],[450,400],[120,280],[780,280],[450,280]].forEach(([x,y], i) => add(x,y,i+10));
+      break;
+    case 22: // Nested diamonds
+      [[450,70],[590,150],[730,280],[590,410],[450,490],[310,410],[170,280],[310,150],
+       [450,170],[550,280],[450,390],[350,280],[450,280],
+       [255,92],[645,92],[255,468],[645,468]].forEach(([x,y], i) => add(x,y,i));
+      break;
+    case 23: // Alternating barricades
+      line(100, 95, 190, 0, 4, 0); line(800, 190, -190, 0, 4, 4);
+      line(100, 285, 190, 0, 4, 8); line(800, 380, -190, 0, 4, 12);
+      line(100, 475, 190, 0, 4, 16);
+      break;
+    case 24: // Six satellite islands
+      ring(6, 300, 200, cx, cy, Math.PI / 6);
+      ring(6, 125, 88, cx, cy, 0);
+      [[450,280],[100,95],[800,95],[100,465],[800,465]].forEach(([x,y], i) => add(x,y,i+12));
+      break;
+    case 25: // Final labyrinth
+      line(100, 80, 140, 0, 6, 0); line(100, 480, 140, 0, 6, 6);
+      line(100, 180, 0, 100, 3, 12); line(800, 180, 0, 100, 3, 15);
+      line(260, 180, 0, 100, 3, 18); line(720, 280, 0, 100, 3, 21);
+      line(320, 280, 110, 0, 4, 24); line(700, 180, -125, 0, 4, 28);
+      add(450, 390, 33);
+      break;
+    default:
+      ring(12, 260, 195, cx, cy, lvl * 0.17);
+      line(450, 80, 0, 120, 3, 20);
+      break;
+  }
+}
+
 function initServers(lvl) {
   servers.length = 0;
   if (lvl === 1) {
@@ -664,7 +814,7 @@ function initServers(lvl) {
     // side anchors
     addServer(80, H/2, 0);
     addServer(W - 80, H/2, 1);
-  } else {
+  } else if (lvl === 5) {
     // level 5: dense ring + inner cross
     const cx = W/2, cy = H/2;
     for (let i = 0; i < 10; i++) {
@@ -676,6 +826,8 @@ function initServers(lvl) {
     addServer(cx, cy - 90, 0);
     addServer(cx, cy + 90, 1);
     addServer(cx, cy, 0);
+  } else {
+    addExtendedLevelLayout(lvl);
   }
 }
 
@@ -1429,11 +1581,18 @@ function setPaused(nextPaused) {
   resetJoy();
   for (const key of Object.keys(keys)) keys[key] = false;
   const overlay = document.getElementById('pauseOverlay');
-  const button = document.getElementById('pauseBtn');
   if (overlay) overlay.classList.toggle('show', paused);
-  if (button) {
-    button.textContent = paused ? 'RESUME' : 'PAUSE';
-    button.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
+  updatePauseControls();
+}
+
+function updatePauseControls() {
+  const symbol = paused ? '▶' : '⏸';
+  const label = paused ? 'Resume game' : 'Pause game';
+  for (const id of ['pauseBtn', 'desktopPauseBtn']) {
+    const button = document.getElementById(id);
+    if (!button) continue;
+    button.textContent = symbol;
+    button.setAttribute('aria-label', label);
   }
 }
 
@@ -1487,7 +1646,7 @@ function restartGame(e) {
   resetAllUpgrades();
   document.getElementById('harnessDialog').style.display = 'none';
   document.getElementById('pauseOverlay').classList.remove('show');
-  document.getElementById('pauseBtn').textContent = 'PAUSE';
+  updatePauseControls();
   hideLeaderboardEntry();
   hideRestartButton();
   startLevel(1);
@@ -2004,7 +2163,14 @@ function draw() {
     if (img && img.complete && img.naturalWidth > 0) {
       const sw = s.w + 8;
       const sh = s.h + 10;
+      // The source art has a decorative checkerboard border. Clip to the
+      // server body so only the equipment, never that border, is rendered.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(s.x - s.w / 2, s.y - s.h / 2, s.w, s.h);
+      ctx.clip();
       ctx.drawImage(img, s.x - sw/2, s.y - sh/2, sw, sh);
+      ctx.restore();
     } else {
       // fallback rect
       ctx.fillStyle = '#1a1a28';
@@ -2474,7 +2640,14 @@ function startLevel(lvl) {
   placePlayerAtSpawn();
   spawnEntity('goblin');
   spawnEntity('goblin');
-  const names = ['', 'grid wing', 'corridor wing', 'cross wing', 'split chambers', 'ring core'];
+  const names = [
+    '', 'grid wing', 'corridor wing', 'cross wing', 'split chambers', 'ring core',
+    'zigzag lanes', 'vertical weave', 'diamond lattice', 'four chambers',
+    'expanding spiral', 'twin U corridors', 'concentric squares', 'diagonal bridge',
+    'serpentine S', 'pinwheel', 'staggered blocks', 'central hub', 'offset canyon',
+    'octagonal arena', 'zigzag bridges', 'star arena', 'nested diamonds',
+    'alternating barricades', 'satellite islands', 'final labyrinth'
+  ];
   showMsg(`Level ${lvl} — ${names[lvl] || 'deep sector'}`);
 }
 
@@ -2498,7 +2671,7 @@ function beginGame(e, selectedMode = 'easy') {
     hideLeaderboardEntry();
     hideRestartButton();
     document.getElementById('pauseOverlay').classList.remove('show');
-    document.getElementById('pauseBtn').textContent = 'PAUSE';
+    updatePauseControls();
     const ov = document.getElementById('overlay');
     if (ov) {
       ov.style.display = 'none';
@@ -2547,6 +2720,14 @@ if (restartBtn) {
 const pauseBtn = document.getElementById('pauseBtn');
 if (pauseBtn) {
   pauseBtn.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    togglePause();
+  });
+}
+const desktopPauseBtn = document.getElementById('desktopPauseBtn');
+if (desktopPauseBtn) {
+  desktopPauseBtn.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
     togglePause();
