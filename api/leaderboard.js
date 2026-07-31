@@ -66,10 +66,9 @@ module.exports = async function leaderboardHandler(req, res) {
 
       const results = await redisPipeline([
         ['ZADD', LEADERBOARD_KEY, 'GT', String(levels), nickname],
-        ['ZREMRANGEBYRANK', LEADERBOARD_KEY, '0', '-11'],
         ['ZRANGE', LEADERBOARD_KEY, '0', '9', 'REV', 'WITHSCORES']
       ]);
-      const entries = parseEntries(results[2] && results[2].result);
+      const entries = parseEntries(results[1] && results[1].result);
       const rankIndex = entries.findIndex(entry => entry.nickname === nickname);
       return res.status(200).json({
         entries,
