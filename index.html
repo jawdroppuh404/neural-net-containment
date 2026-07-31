@@ -220,8 +220,11 @@
 <body>
   <div id="ui">
     <div class="stat"><span class="label">TOKENS</span><span class="value" id="tokens">0</span></div>
+    <div class="stat"><span class="label">HP</span><span class="value warn" id="playerHp">100/100</span></div>
+    <div class="stat"><span class="label">LIVES</span><span class="value" id="lives">3</span></div>
     <div class="stat"><span class="label">CAUGHT</span><span class="value" id="caught">0</span></div>
     <div class="stat"><span class="label">ACTIVE</span><span class="value warn" id="active">0</span></div>
+    <div class="stat"><span class="label">BLASTER</span><span class="value whisper" id="blasterStatus">HIDDEN</span></div>
     <div class="stat"><span class="label">WHISPER</span><span class="value whisper" id="whisperStatus">LOCKED (need 12)</span></div>
     <div class="stat"><span class="label">WAVE</span><span class="value" id="wave">1</span></div>
     <div class="stat"><span class="label">LEVEL</span><span class="value" id="level">1</span></div>
@@ -265,8 +268,11 @@
     <p>Move with <b>WASD</b> or arrows. Click to aim and fire the neural net.<br>
     On mobile, steer with one finger and hold <b>FIRE</b> with another.<br>
     Release the joystick to auto-aim at the nearest target.<br>
-    Each catch yields tokens. At 12 tokens you unlock <b>WHISPER</b> (Space).</p>
+    Each catch yields tokens. Every 100 tokens grants an extra life.<br>
+    At 12 tokens you unlock <b>WHISPER</b> (Space).<br>
+    One server per level hides a double-damage blaster upgrade.</p>
     <p class="hint">Whisper (Space) calms entities. Destroy 3 servers to unlock HARNESS (H).<br>
+    You have 100 HP and 3 lives. Entity contact causes damage.<br>
     5 levels · Level N ends with N Shoggoths. Servers are solid barriers.</p>
     <button id="startBtn" type="button" onclick="if(window.beginGame){window.beginGame(event);}else{this.textContent='LOADING…';}">ENTER SERVER ROOM</button>
   </div>
@@ -310,6 +316,9 @@ const serverFrames = [serverImg1, serverImg2];
 // ── State ──────────────────────────────────────────────
 let running = false;
 let tokens = 0;
+let totalTokensEarned = 0;
+let nextExtraLifeAt = 100;
+let lives = 3;
 let caught = 0;
 let wave = 1;
 let level = 1;
@@ -321,6 +330,7 @@ let shoggothSpawned = false;
 let shoggothsToSpawn = 0;
 let gameOver = false;
 let win = false;
+let gameOverReason = '';
 let levelTransition = 0;
 let serversDestroyed = 0;
 let harnessUnlocked = false;
@@ -329,10 +339,15 @@ let playerDamage = 1;
 let strengthenTimer = 0;
 let loopTimer = 0;
 let selfDestructTimer = 0;
+let playerInvulnerability = 0;
+let blasterUpgraded = false;
+let blasterPickup = null;
 
 const player = {
   x: W/2, y: H/2,
   r: 18,
+  hp: 100,
+  maxHp: 100,
   speed: 3.2,
   walkFrame: 0,
   moving: false,
@@ -358,6 +373,7 @@ function addServer(x, y, variant) {
     hp: 10,
     maxHp: 10,
     collapsed: false,
+    hasBlasterUpgrade: false,
     variant: variant % 2
   });
 }
@@ -421,6 +437,15 @@ function initServers(lvl) {
   }
 }
 
+function hideBlasterUpgrade() {
+  blasterUpgraded = false;
+  blasterPickup = null;
+  for (const server of servers) server.hasBlasterUpgrade = false;
+  if (!servers.length) return;
+  const hiddenServer = servers[Math.floor(Math.random() * servers.length)];
+  hiddenServer.hasBlasterUpgrade = true;
+}
+
 // ── Collision ──────────────────────────────────────────
 function collidesWithServer(x, y, r) {
   for (const s of servers) {
@@ -449,10 +474,10 @@ function resolveMove(x, y, r, dx, dy) {
 
 // ── Entity types ───────────────────────────────────────
 const TYPES = {
-  goblin:  { r: 16, color: '#3fb950', speed: 1.4, hp: 1, value: 1, name: 'Goblin' },
-  ghoul:   { r: 14, color: '#58a6ff', speed: 1.1, hp: 2, value: 2, name: 'Ghoul' },
-  demon:   { r: 17, color: '#f85149', speed: 1.7, hp: 3, value: 3, name: 'Demon' },
-  shoggoth:{ r: 32, color: '#7ee787', speed: 0.9, hp: 12, value: 15, name: 'Shoggoth' }
+  goblin:  { r: 16, color: '#3fb950', speed: 1.4, hp: 1,  damage: 6,  value: 1,  name: 'Goblin' },
+  ghoul:   { r: 14, color: '#58a6ff', speed: 1.1, hp: 2,  damage: 8,  value: 2,  name: 'Ghoul' },
+  demon:   { r: 17, color: '#f85149', speed: 1.7, hp: 3,  damage: 12, value: 3,  name: 'Demon' },
+  shoggoth:{ r: 32, color: '#7ee787', speed: 0.9, hp: 12, damage: 20, value: 15, name: 'Shoggoth' }
 };
 
 function spawnEntity(type) {
@@ -740,16 +765,78 @@ function setPlayerFacing(dx, dy) {
   }
 }
 
+function awardTokens(amount) {
+  tokens += amount;
+  totalTokensEarned += amount;
+  let extraLives = 0;
+  while (totalTokensEarned >= nextExtraLifeAt) {
+    lives++;
+    extraLives++;
+    nextExtraLifeAt += 100;
+  }
+  if (extraLives > 0) {
+    showMsg(`EXTRA LIFE — ${lives} lives remaining`);
+  }
+}
+
+function placePlayerAtSpawn() {
+  player.x = W / 2;
+  player.y = (level === 1) ? H / 2 + 40 : H - 120;
+  setPlayerFacing(0, -1);
+}
+
+function loseLife(reason) {
+  lives--;
+  player.hp = 0;
+  mobileFireHeld = false;
+  mobileFirePointerId = null;
+  projectiles.length = 0;
+  addParticles(player.x, player.y, '#ff7b72', 28);
+
+  if (lives <= 0) {
+    gameOver = true;
+    win = false;
+    gameOverReason = reason || 'Marlboro Man lost all three lives.';
+    showMsg('No lives remaining — containment failed');
+    return true;
+  }
+
+  player.hp = player.maxHp;
+  playerInvulnerability = 180;
+  entities.length = 0;
+  particles.length = 0;
+  shoggothSpawned = false;
+  shoggothsToSpawn = 0;
+  placePlayerAtSpawn();
+  spawnEntity('goblin');
+  spawnEntity('goblin');
+  showMsg(`Life lost — ${lives} remaining`);
+  return true;
+}
+
+function damagePlayer(amount, sourceName) {
+  if (playerInvulnerability > 0 || gameOver) return false;
+  player.hp = Math.max(0, player.hp - amount);
+  playerInvulnerability = 45;
+  addParticles(player.x, player.y, '#ff7b72', 10);
+  showMsg(`${sourceName} hit — ${Math.ceil(player.hp)} HP`);
+  if (player.hp <= 0) return loseLife(`${sourceName} exhausted the final life.`);
+  return false;
+}
+
 function fireForward() {
   const muzzleDistance = player.r + 10;
   const speed = 9;
+  const upgraded = blasterUpgraded;
   projectiles.push({
     x: player.x + player.facingX * muzzleDistance,
     y: player.y + player.facingY * muzzleDistance,
     vx: player.facingX * speed,
     vy: player.facingY * speed,
     r: 5,
-    damage: playerDamage,
+    damage: playerDamage * (upgraded ? 2 : 1),
+    color: upgraded ? '#d946ef' : '#7ee787',
+    upgraded,
     life: 100
   });
 }
@@ -764,10 +851,10 @@ function damageEntity(ent, damage) {
   addParticles(ent.x, ent.y, ent.color, 6);
   if (ent.hp <= 0) {
     ent.caught = true;
-    tokens += ent.value;
     caught++;
     showMsg(`Caught ${TYPES[ent.type].name}  +${ent.value} tokens`);
     addParticles(ent.x, ent.y, ent.color, 14);
+    awardTokens(ent.value);
   }
 }
 
@@ -780,10 +867,14 @@ function damageServer(server, damage) {
     serversDestroyed++;
     showMsg('Server collapsed — path opened');
     addParticles(server.x, server.y, '#f85149', 20);
-    tokens += 2;
+    awardTokens(2);
     if (!harnessUnlocked && serversDestroyed >= 3) {
       harnessUnlocked = true;
       showMsg('HARNESS unlocked — press H');
+    }
+    if (server.hasBlasterUpgrade && !blasterUpgraded) {
+      blasterPickup = { x: server.x, y: server.y, r: 13, pulse: 0 };
+      showMsg('BLASTER REVEALED — collect the purple upgrade');
     }
   } else {
     showMsg(`Server HP ${Math.ceil(server.hp)}/${server.maxHp}`);
@@ -888,6 +979,17 @@ function update() {
   }
   player.x = Math.max(20, Math.min(W-20, player.x));
   player.y = Math.max(20, Math.min(H-20, player.y));
+  if (playerInvulnerability > 0) playerInvulnerability--;
+
+  if (blasterPickup) {
+    blasterPickup.pulse += 0.12;
+    if (Math.hypot(player.x - blasterPickup.x, player.y - blasterPickup.y) <=
+        player.r + blasterPickup.r + 4) {
+      blasterUpgraded = true;
+      blasterPickup = null;
+      showMsg('BLASTER ACQUIRED — purple rounds deal double damage');
+    }
+  }
 
   // A separate FIRE pointer allows simultaneous joystick movement and shooting.
   if (mobileFireCooldown > 0) mobileFireCooldown--;
@@ -948,10 +1050,10 @@ function update() {
         ent.hp -= 0.5;
         if (ent.hp <= 0) {
           ent.caught = true;
-          tokens += ent.value;
           caught++;
           showMsg(`Decrypted ${TYPES[ent.type].name}  +${ent.value}`);
           addParticles(ent.x, ent.y, '#c77dff', 12);
+          awardTokens(ent.value);
         }
       }
     }
@@ -1031,6 +1133,19 @@ function update() {
     ent.y = Math.max(25, Math.min(H-25, ent.y));
   }
 
+  // Entity contact damages the player, with a short grace period between hits.
+  if (playerInvulnerability <= 0) {
+    const attacker = entities.find(ent =>
+      !ent.caught &&
+      ent.hp > 0 &&
+      Math.hypot(ent.x - player.x, ent.y - player.y) <= player.r + ent.r * 0.7
+    );
+    if (attacker) {
+      const type = TYPES[attacker.type];
+      damagePlayer(Math.ceil(type.damage * attacker.power), type.name);
+    }
+  }
+
   // remove dead
   for (let i = entities.length-1; i >= 0; i--) {
     if (entities[i].caught) entities.splice(i,1);
@@ -1089,9 +1204,7 @@ function update() {
     }
   }
   if (entities.length > 20 + level * 2) {
-    gameOver = true;
-    win = false;
-    showMsg('Containment breach — too many entities');
+    loseLife('A containment swarm exhausted the final life.');
   }
 
   // particles
@@ -1115,9 +1228,15 @@ function update() {
 
   // UI
   document.getElementById('tokens').textContent = tokens;
+  document.getElementById('playerHp').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
+  document.getElementById('lives').textContent = lives;
   document.getElementById('caught').textContent = caught;
   document.getElementById('active').textContent = entities.length;
   document.getElementById('wave').textContent = wave;
+  const blasterStatus = document.getElementById('blasterStatus');
+  if (blasterStatus) {
+    blasterStatus.textContent = blasterUpgraded ? 'PURPLE x2' : (blasterPickup ? 'REVEALED' : 'HIDDEN');
+  }
   const lvlEl = document.getElementById('level');
   if (lvlEl) lvlEl.textContent = level;
   const hs = document.getElementById('harnessStatus');
@@ -1239,6 +1358,34 @@ function draw() {
       ctx.fillStyle = s.hp <= 3 ? '#f85149' : '#3fb950';
       ctx.fillRect(s.x - bw/2, s.y - s.h/2 - 10, bw * (s.hp / s.maxHp), 4);
     }
+  }
+
+  // Revealed blaster upgrade — hidden until its host server is destroyed.
+  if (blasterPickup) {
+    const pulse = 1 + Math.sin(blasterPickup.pulse) * 0.12;
+    ctx.save();
+    ctx.translate(blasterPickup.x, blasterPickup.y);
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = '#d946ef';
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = '#d946ef';
+    ctx.strokeStyle = '#f0abfc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, blasterPickup.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#19051f';
+    ctx.fillRect(-8, -3, 16, 6);
+    ctx.fillRect(2, 2, 5, 8);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(6, -1, 6, 2);
+    ctx.restore();
+
+    ctx.fillStyle = '#f0abfc';
+    ctx.font = 'bold 9px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('x2 BLASTER', blasterPickup.x, blasterPickup.y - 22);
   }
 
   // entities
@@ -1365,16 +1512,17 @@ function draw() {
 
   // neural-net projectiles
   for (const p of projectiles) {
+    const projectileColor = p.color || '#7ee787';
     ctx.save();
-    ctx.strokeStyle = 'rgba(126,231,135,0.35)';
+    ctx.strokeStyle = p.upgraded ? 'rgba(217,70,239,0.65)' : 'rgba(126,231,135,0.35)';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(p.x - p.vx * 1.8, p.y - p.vy * 1.8);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
-    ctx.fillStyle = '#7ee787';
-    ctx.shadowColor = '#7ee787';
-    ctx.shadowBlur = 10;
+    ctx.fillStyle = projectileColor;
+    ctx.shadowColor = projectileColor;
+    ctx.shadowBlur = p.upgraded ? 18 : 10;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
     ctx.fill();
@@ -1382,7 +1530,7 @@ function draw() {
   }
 
   // player (Marlboro Man cowboy + walking legs)
-  {
+  if (playerInvulnerability <= 0 || Math.floor(playerInvulnerability / 5) % 2 === 0) {
     const px = player.x, py = player.y;
     const headSize = player.r * 2.8;
     // walk cycle: sin wave for leg swing
@@ -1458,6 +1606,17 @@ function draw() {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // player HP bar
+  {
+    const hpRatio = Math.max(0, player.hp / player.maxHp);
+    const barWidth = 54;
+    const barY = player.y + 48;
+    ctx.fillStyle = 'rgba(10,10,15,0.85)';
+    ctx.fillRect(player.x - barWidth / 2, barY, barWidth, 6);
+    ctx.fillStyle = hpRatio > 0.5 ? '#7ee787' : (hpRatio > 0.25 ? '#d29922' : '#f85149');
+    ctx.fillRect(player.x - barWidth / 2 + 1, barY + 1, (barWidth - 2) * hpRatio, 4);
+  }
+
   // persistent facing marker — follows joystick, keyboard, mouse, or touch aim
   {
     const markerStart = player.r + 10;
@@ -1467,8 +1626,9 @@ function draw() {
     const ex = player.x + player.facingX * markerEnd;
     const ey = player.y + player.facingY * markerEnd;
     ctx.save();
-    ctx.strokeStyle = '#7ee787';
-    ctx.fillStyle = '#7ee787';
+    const facingColor = blasterUpgraded ? '#d946ef' : '#7ee787';
+    ctx.strokeStyle = facingColor;
+    ctx.fillStyle = facingColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(sx, sy);
@@ -1517,7 +1677,7 @@ function draw() {
     ctx.fillText(win ? 'CONTAINMENT SUCCESS' : 'CONTAINMENT BREACH', W/2, H/2 - 20);
     ctx.fillStyle = '#a0a0b8';
     ctx.font = '14px Courier New';
-    ctx.fillText(win ? 'All 5 sectors stable. Training continues.' : 'Too many residual entities escaped.', W/2, H/2 + 16);
+    ctx.fillText(win ? 'All 5 sectors stable. Training continues.' : (gameOverReason || 'All lives exhausted.'), W/2, H/2 + 16);
     ctx.fillText('Refresh to play again', W/2, H/2 + 44);
   }
 }
@@ -1547,9 +1707,10 @@ function startLevel(lvl) {
   selfDestructTimer = 0;
   playerDamage = 1;
   initServers(lvl);
-  player.x = W/2;
-  player.y = (lvl === 1) ? H/2 + 40 : H - 120;
-  setPlayerFacing(0, -1);
+  hideBlasterUpgrade();
+  player.hp = player.maxHp;
+  playerInvulnerability = 90;
+  placePlayerAtSpawn();
   spawnEntity('goblin');
   spawnEntity('goblin');
   const names = ['', 'grid wing', 'corridor wing', 'cross wing', 'split chambers', 'ring core'];
