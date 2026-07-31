@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Net — Server Room Containment</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #c0c0d0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #ui {
+    width: 900px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #12121a;
+    border: 1px solid #2a2a3a;
+    border-bottom: none;
+    font-size: 13px;
+  }
+  #ui .stat { display: flex; gap: 6px; align-items: center; }
+  #ui .label { color: #6a6a8a; }
+  #ui .value { color: #7ee787; font-weight: bold; }
+  #ui .whisper { color: #c77dff; }
+  #ui .warn { color: #ff7b72; }
+  canvas {
+    background: #0d0d14;
+    border: 1px solid #2a2a3a;
+    cursor: crosshair;
+    display: block;
+  }
+  #overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(5,5,10,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    text-align: center;
+    padding: 40px;
+    pointer-events: auto;
+  }
+  #overlay h1 {
+    font-size: 28px;
+    color: #7ee787;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  #overlay p {
+    max-width: 520px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+    color: #a0a0b8;
+  }
+  #overlay .hint { color: #6a6a8a; font-size: 12px; margin-top: 18px; }
+  #overlay button {
+    margin-top: 24px;
+    padding: 12px 32px;
+    background: #1a1a28;
+    border: 1px solid #3a3a5a;
+    color: #7ee787;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #overlay button:hover { background: #22223a; border-color: #5a5a8a; }
+  #msg {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,10,18,0.9);
+    border: 1px solid #3a3a5a;
+    padding: 8px 18px;
+    font-size: 13px;
+    color: #c0c0d0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 5;
+  }
+  #msg.show { opacity: 1; }
+
+  /* progress bar */
+  #progressWrap {
+    width: 900px;
+    background: #12121a;
+    border: 1px solid #2a2a3a;
+    border-top: none;
+    padding: 6px 12px 8px;
+  }
+  #progressLabel {
+    font-size: 11px;
+    color: #6a6a8a;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  #progressBar {
+    height: 8px;
+    background: #1a1a28;
+    border: 1px solid #2a2a3a;
+    overflow: hidden;
+  }
+  #progressFill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #3fb950, #7ee787);
+    transition: width 0.25s ease;
+  }
+
+  /* mobile joystick + action buttons */
+  #mobileControls {
+    display: none;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 15;
+  }
+  #mobileControls.active {
+    display: block;
+  }
+  #joystickBase {
+    position: absolute;
+    left: 24px;
+    bottom: 24px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(30, 30, 50, 0.55);
+    border: 2px solid rgba(126, 231, 135, 0.35);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #joystickKnob {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(126, 231, 135, 0.7);
+    border: 2px solid #7ee787;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    box-shadow: 0 0 12px rgba(126, 231, 135, 0.4);
+  }
+  #mobileActions {
+    position: absolute;
+    right: 20px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: auto;
+  }
+  .mBtn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid #3a3a5a;
+    background: rgba(26, 26, 40, 0.75);
+    color: #c0c0d0;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    pointer-events: auto;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .mBtn:active { transform: scale(0.92); }
+  .mBtn.fire { border-color: #7ee787; color: #7ee787; }
+  .mBtn.whisper { border-color: #c77dff; color: #c77dff; }
+  .mBtn.harness { border-color: #58a6ff; color: #58a6ff; }
+  .mBtn.ready {
+    box-shadow: 0 0 14px rgba(126, 231, 135, 0.55);
+    animation: pulseReady 1.2s ease-in-out infinite;
+  }
+  @keyframes pulseReady {
+    0%, 100% { box-shadow: 0 0 8px rgba(126, 231, 135, 0.35); }
+    50% { box-shadow: 0 0 18px rgba(126, 231, 135, 0.8); }
+  }
+  #harnessStatus.ready-pulse {
+    animation: textPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes textPulse {
+    0%, 100% { color: #c77dff; }
+    50% { color: #7ee787; }
+  }
+
+  @media (hover: none), (max-width: 900px) {
+    #ui, #progressWrap { width: 100%; max-width: 100vw; flex-wrap: wrap; gap: 4px; }
+    canvas { width: 100vw !important; height: auto !important; max-height: 70vh; }
+  }
+  /* only show mobile controls once the game is running AND on a touch / narrow layout */
+  @media (hover: none), (max-width: 900px) {
+    #mobileControls.active { display: block; }
+  }
+</style>
+</head>
+<body>
+  <div id="ui">
+    <div class="stat"><span class="label">TOKENS</span><span class="value" id="tokens">0</span></div>
+    <div class="stat"><span class="label">CAUGHT</span><span class="value" id="caught">0</span></div>
+    <div class="stat"><span class="label">ACTIVE</span><span class="value warn" id="active">0</span></div>
+    <div class="stat"><span class="label">WHISPER</span><span class="value whisper" id="whisperStatus">LOCKED (need 12)</span></div>
+    <div class="stat"><span class="label">WAVE</span><span class="value" id="wave">1</span></div>
+    <div class="stat"><span class="label">LEVEL</span><span class="value" id="level">1</span></div>
+    <div class="stat"><span class="label">HARNESS</span><span class="value whisper" id="harnessStatus">LOCKED</span></div>
+  </div>
+  <canvas id="c" width="900" height="560"></canvas>
+  <div id="progressWrap">
+    <div id="progressLabel">
+      <span id="progressText">Wave 1 / 5</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div id="progressBar"><div id="progressFill"></div></div>
+  </div>
+  <div id="msg"></div>
+
+  <div id="mobileControls">
+    <div id="joystickBase">
+      <div id="joystickKnob"></div>
+    </div>
+    <div id="mobileActions">
+      <button class="mBtn fire" id="mFire">FIRE</button>
+      <button class="mBtn whisper" id="mWhisper">WHISPER</button>
+      <button class="mBtn harness" id="mHarness">HARNESS</button>
+    </div>
+  </div>
+
+  <div id="harnessDialog" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#12121a;border:2px solid #5a5a8a;padding:24px 32px;z-index:20;text-align:center;min-width:320px;">
+    <h2 style="color:#c77dff;margin-bottom:16px;font-size:18px;letter-spacing:2px;">HARNESS PROTOCOL</h2>
+    <p style="color:#a0a0b8;font-size:12px;margin-bottom:18px;">Select a residual-compute exploit</p>
+    <button class="harnessBtn" data-mode="strengthen" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#7ee787;font-family:inherit;cursor:pointer;">1. STRENGTHEN — +damage 10s</button>
+    <button class="harnessBtn" data-mode="loop" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#58a6ff;font-family:inherit;cursor:pointer;">2. LOOP — entities circle 10s</button>
+    <button class="harnessBtn" data-mode="selfdestruct" style="display:block;width:100%;margin:8px 0;padding:10px;background:#1a1a28;border:1px solid #3a3a5a;color:#f85149;font-family:inherit;cursor:pointer;">3. SELF-DESTRUCT — free-for-all 15s</button>
+    <button id="harnessCancel" style="margin-top:12px;padding:6px 16px;background:transparent;border:1px solid #3a3a5a;color:#6a6a8a;font-family:inherit;cursor:pointer;font-size:12px;">Cancel (Esc)</button>
+  </div>
+
+  <div id="overlay">
+    <h1>NEURAL NET // CONTAINMENT</h1>
+    <p>You are inside a server room training a frontier model.<br>
+    Residual compute sometimes collapses into entities.</p>
+    <p><b>Goblins</b> · <b>Ghouls</b> · <b>Demons</b> · and eventually a <b>Shoggoth</b>.</p>
+    <p>Move with <b>WASD</b> or arrows. Click to fire the neural net and catch them.<br>
+    Each catch yields tokens. At 12 tokens you unlock <b>WHISPER</b> (Space).</p>
+    <p class="hint">Whisper (Space) calms entities. Destroy 3 servers to unlock HARNESS (H).<br>
+    5 levels · Level N ends with N Shoggoths. Servers are solid barriers.</p>
+    <button id="startBtn" type="button" onclick="if(window.beginGame){window.beginGame(event);}else{this.textContent='LOADING…';}">ENTER SERVER ROOM</button>
+  </div>
+
+<script>
+// Global start hook so inline / late handlers always work
+window.__beginGame = null;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ── Assets (embedded) ───────────────────────────────
+const goblinImg = new Image();
+goblinImg.src = 'goblin_head.png';
+const goblinImg2 = new Image();
+goblinImg2.src = 'goblin_head2.png';
+const ghoulImg = new Image();
+ghoulImg.src = 'ghoul_head.png';
+const ghoulImg2 = new Image();
+ghoulImg2.src = 'ghoul_head2.png';
+const demonImg = new Image();
+demonImg.src = 'demon_head.png';
+const demonImg2 = new Image();
+demonImg2.src = 'demon_head2.png';
+const playerImg = new Image();
+playerImg.src = 'player_cowboy.png';
+const shoggothImg1 = new Image();
+shoggothImg1.src = 'shoggoth1.png';
+const shoggothImg2 = new Image();
+shoggothImg2.src = 'shoggoth2.png';
+const shoggothImg3 = new Image();
+shoggothImg3.src = 'shoggoth3.png';
+const serverImg1 = new Image();
+serverImg1.src = 'server1.png';
+const serverImg2 = new Image();
+serverImg2.src = 'server2.png';
+const shoggothFrames = [shoggothImg1, shoggothImg2, shoggothImg3];
+const serverFrames = [serverImg1, serverImg2];
+
+// ── State ──────────────────────────────────────────────
+let running = false;
+let tokens = 0;
+let caught = 0;
+let wave = 1;
+let level = 1;
+let whisperUnlocked = false;
+let whisperCooldown = 0;
+let messageTimer = 0;
+let spawnTimer = 0;
+let shoggothSpawned = false;
+let shoggothsToSpawn = 0;
+let gameOver = false;
+let win = false;
+let levelTransition = 0;
+let serversDestroyed = 0;
+let harnessUnlocked = false;
+let harnessOpen = false;
+let playerDamage = 1;
+let strengthenTimer = 0;
+let loopTimer = 0;
+let selfDestructTimer = 0;
+
+const player = {
+  x: W/2, y: H/2,
+  r: 18,
+  speed: 3.2,
+  walkFrame: 0,
+  moving: false,
+  facing: 1
+};
+
+const keys = {};
+const entities = [];
+const particles = [];
+const servers = [];
+
+// ── Servers layout ─────────────────────────────────────
+function addServer(x, y, variant) {
+  servers.push({
+    x, y,
+    w: 52, h: 68,
+    heat: 0,
+    blink: Math.random(),
+    hp: 10,
+    maxHp: 10,
+    collapsed: false,
+    variant: variant % 2
+  });
+}
+
+function initServers(lvl) {
+  servers.length = 0;
+  if (lvl === 1) {
+    // classic 5x3 grid
+    const cols = 5, rows = 3;
+    const marginX = 90, marginY = 70;
+    const gapX = (W - 2*marginX) / (cols-1);
+    const gapY = (H - 2*marginY - 40) / (rows-1);
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        addServer(marginX + c * gapX, marginY + r * gapY, r + c);
+  } else if (lvl === 2) {
+    // corridor walls + central diamond
+    for (let i = 0; i < 4; i++) {
+      addServer(70, 80 + i * 110, i);
+      addServer(W - 70, 80 + i * 110, i + 1);
+    }
+    [250, 450, 650].forEach((x, i) => { addServer(x, 70, i); addServer(x, H - 70, i + 1); });
+    addServer(350, 220, 0); addServer(550, 220, 1);
+    addServer(350, 360, 1); addServer(550, 360, 0);
+    addServer(W/2, H/2, 0);
+  } else if (lvl === 3) {
+    // X / cross pattern
+    for (let i = 0; i < 5; i++) {
+      addServer(120 + i * 165, 100 + i * 80, i);
+      addServer(120 + i * 165, 460 - i * 80, i + 1);
+    }
+    addServer(W/2, 80, 0);
+    addServer(W/2, H - 80, 1);
+    addServer(80, H/2, 0);
+    addServer(W - 80, H/2, 1);
+  } else if (lvl === 4) {
+    // two chambers separated by a mid wall
+    for (let i = 0; i < 3; i++) {
+      addServer(120 + i * 100, 100, i);
+      addServer(120 + i * 100, H - 100, i);
+      addServer(W - 120 - i * 100, 100, i);
+      addServer(W - 120 - i * 100, H - 100, i);
+    }
+    // vertical divider
+    for (let i = 0; i < 4; i++) addServer(W/2, 100 + i * 110, i);
+    // side anchors
+    addServer(80, H/2, 0);
+    addServer(W - 80, H/2, 1);
+  } else {
+    // level 5: dense ring + inner cross
+    const cx = W/2, cy = H/2;
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      addServer(cx + Math.cos(a) * 220, cy + Math.sin(a) * 180, i);
+    }
+    addServer(cx - 100, cy, 0);
+    addServer(cx + 100, cy, 1);
+    addServer(cx, cy - 90, 0);
+    addServer(cx, cy + 90, 1);
+    addServer(cx, cy, 0);
+  }
+}
+
+// ── Collision ──────────────────────────────────────────
+function collidesWithServer(x, y, r) {
+  for (const s of servers) {
+    if (s.collapsed) continue; // destroyed servers are no longer barriers
+    const left   = s.x - s.w/2 - r;
+    const right  = s.x + s.w/2 + r;
+    const top    = s.y - s.h/2 - r;
+    const bottom = s.y + s.h/2 + r;
+    if (x > left && x < right && y > top && y < bottom) return true;
+  }
+  return false;
+}
+
+// Try to move a circle; returns the final position after resolving collisions
+function resolveMove(x, y, r, dx, dy) {
+  let nx = x + dx;
+  let ny = y + dy;
+  // try X first
+  if (collidesWithServer(nx, y, r)) nx = x;
+  // then Y
+  if (collidesWithServer(nx, ny, r)) ny = y;
+  // if both axes blocked, stay put
+  if (collidesWithServer(nx, ny, r)) { nx = x; ny = y; }
+  return { x: nx, y: ny };
+}
+
+// ── Entity types ───────────────────────────────────────
+const TYPES = {
+  goblin:  { r: 16, color: '#3fb950', speed: 1.4, hp: 1, value: 1, name: 'Goblin' },
+  ghoul:   { r: 14, color: '#58a6ff', speed: 1.1, hp: 2, value: 2, name: 'Ghoul' },
+  demon:   { r: 17, color: '#f85149', speed: 1.7, hp: 3, value: 3, name: 'Demon' },
+  shoggoth:{ r: 32, color: '#7ee787', speed: 0.9, hp: 12, value: 15, name: 'Shoggoth' }
+};
+
+function spawnEntity(type) {
+  // prefer intact servers
+  const intact = servers.filter(s => !s.collapsed);
+  const pool = intact.length ? intact : servers;
+  const s = pool[Math.floor(Math.random()*pool.length)];
+  const t = TYPES[type];
+  let attempts = 0;
+  let sx, sy;
+  do {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 45 + Math.random() * 35;
+    sx = s.x + Math.cos(ang) * dist;
+    sy = s.y + Math.sin(ang) * dist;
+    attempts++;
+  } while (collidesWithServer(sx, sy, t.r) && attempts < 20);
+
+  // clamp to playable area
+  sx = Math.max(30, Math.min(W-30, sx));
+  sy = Math.max(30, Math.min(H-30, sy));
+
+  entities.push({
+    type,
+    x: sx,
+    y: sy,
+    r: t.r,
+    color: t.color,
+    speed: t.speed * (0.85 + Math.random()*0.3),
+    hp: t.hp,
+    maxHp: t.hp,
+    value: t.value,
+    angle: Math.random()*Math.PI*2,
+    calm: 0,
+    caught: false,
+    life: 0,
+    variant: Math.random() < 0.5 ? 0 : 1,
+    walkFrame: Math.random() * 10,
+    power: 1,          // grows via SELF-DESTRUCT
+    loopAngle: Math.random() * Math.PI * 2,
+    loopCx: sx,
+    loopCy: sy
+  });
+  if (s && !s.collapsed) s.heat = 1;
+}
+
+// ── Particles ──────────────────────────────────────────
+function addParticles(x, y, color, n=8) {
+  for (let i=0;i<n;i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*4,
+      vy: (Math.random()-0.5)*4,
+      life: 30 + Math.random()*20,
+      color,
+      size: 2 + Math.random()*3
+    });
+  }
+}
+
+// ── Virtual joystick ───────────────────────────────────
+const joy = { active: false, dx: 0, dy: 0, id: null };
+const joyBase = document.getElementById('joystickBase');
+const joyKnob = document.getElementById('joystickKnob');
+const JOY_MAX = 42; // max knob travel in px
+
+function setKnob(dx, dy) {
+  if (!joyKnob) return;
+  joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+function resetJoy() {
+  joy.active = false;
+  joy.dx = 0;
+  joy.dy = 0;
+  joy.id = null;
+  setKnob(0, 0);
+}
+function updateJoyFromTouch(clientX, clientY) {
+  if (!joyBase) return;
+  const rect = joyBase.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  let dx = clientX - cx;
+  let dy = clientY - cy;
+  const len = Math.hypot(dx, dy) || 1;
+  if (len > JOY_MAX) { dx = (dx / len) * JOY_MAX; dy = (dy / len) * JOY_MAX; }
+  setKnob(dx, dy);
+  joy.dx = dx / JOY_MAX;
+  joy.dy = dy / JOY_MAX;
+}
+
+if (joyBase) {
+  joyBase.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    joy.active = true;
+    joy.id = t.identifier;
+    updateJoyFromTouch(t.clientX, t.clientY);
+  }, { passive: false });
+
+  joyBase.addEventListener('mousedown', e => {
+    e.preventDefault();
+    joy.active = true;
+    joy.id = 'mouse';
+    updateJoyFromTouch(e.clientX, e.clientY);
+  });
+}
+
+window.addEventListener('touchmove', e => {
+  if (!joy.active) return;
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) {
+      e.preventDefault();
+      updateJoyFromTouch(t.clientX, t.clientY);
+      break;
+    }
+  }
+}, { passive: false });
+
+window.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) { resetJoy(); break; }
+  }
+});
+window.addEventListener('touchcancel', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) { resetJoy(); break; }
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (joy.active && joy.id === 'mouse') updateJoyFromTouch(e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', () => {
+  if (joy.id === 'mouse') resetJoy();
+});
+
+// ── Input ──────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ' && running && !gameOver && !harnessOpen) {
+    e.preventDefault();
+    tryWhisper();
+  }
+  if ((e.key === 'h' || e.key === 'H') && running && !gameOver) {
+    e.preventDefault();
+    openHarness();
+  }
+  if (e.key === 'Escape' && harnessOpen) {
+    closeHarness();
+  }
+  // number keys select harness option when dialog is open
+  if (harnessOpen) {
+    if (e.key === '1') applyHarness('strengthen');
+    if (e.key === '2') applyHarness('loop');
+    if (e.key === '3') applyHarness('selfdestruct');
+  }
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('click', e => {
+  if (!running || gameOver || harnessOpen) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (W / rect.width);
+  const my = (e.clientY - rect.top) * (H / rect.height);
+  fireNet(mx, my);
+});
+// touch-to-fire on canvas (ignore if on joystick/buttons)
+canvas.addEventListener('touchstart', e => {
+  if (!running || gameOver || harnessOpen) return;
+  // only fire if the touch is on the canvas, not controls
+  const t = e.changedTouches[0];
+  const rect = canvas.getBoundingClientRect();
+  if (t.clientX < rect.left || t.clientX > rect.right || t.clientY < rect.top || t.clientY > rect.bottom) return;
+  e.preventDefault();
+  const mx = (t.clientX - rect.left) * (W / rect.width);
+  const my = (t.clientY - rect.top) * (H / rect.height);
+  fireNet(mx, my);
+}, { passive: false });
+
+document.querySelectorAll('.harnessBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    applyHarness(btn.dataset.mode);
+  });
+});
+document.getElementById('harnessCancel').addEventListener('click', closeHarness);
+
+// mobile action buttons
+const mFire = document.getElementById('mFire');
+const mWhisper = document.getElementById('mWhisper');
+const mHarnessBtn = document.getElementById('mHarness');
+if (mFire) mFire.addEventListener('click', e => {
+  e.preventDefault();
+  if (!running || gameOver || harnessOpen) return;
+  let best = null, bestD = 9999;
+  for (const ent of entities) {
+    if (ent.caught || ent.hp <= 0) continue;
+    const d = Math.hypot(ent.x - player.x, ent.y - player.y);
+    if (d < bestD) { bestD = d; best = ent; }
+  }
+  if (best) fireNet(best.x, best.y);
+  else fireNet(player.x + player.facing * 40, player.y);
+});
+if (mWhisper) mWhisper.addEventListener('click', e => {
+  e.preventDefault();
+  if (!running || gameOver || harnessOpen) return;
+  tryWhisper();
+});
+if (mHarnessBtn) mHarnessBtn.addEventListener('click', e => {
+  e.preventDefault();
+  if (!running || gameOver) return;
+  openHarness();
+});
+
+// ── Actions ────────────────────────────────────────────
+function fireNet(tx, ty) {
+  // prefer entities first
+  let best = null, bestD = 55;
+  for (const ent of entities) {
+    if (ent.caught || ent.hp <= 0) continue;
+    const d = Math.hypot(ent.x - tx, ent.y - ty);
+    if (d < bestD) { bestD = d; best = ent; }
+  }
+  if (best) {
+    best.hp -= playerDamage;
+    addParticles(best.x, best.y, best.color, 6);
+    if (best.hp <= 0) {
+      best.caught = true;
+      tokens += best.value;
+      caught++;
+      showMsg(`Caught ${TYPES[best.type].name}  +${best.value} tokens`);
+      addParticles(best.x, best.y, best.color, 14);
+    }
+    return;
+  }
+
+  // otherwise try to hit a server
+  let bestS = null, bestSD = 40;
+  for (const s of servers) {
+    if (s.collapsed) continue;
+    const d = Math.hypot(s.x - tx, s.y - ty);
+    if (d < bestSD) { bestSD = d; bestS = s; }
+  }
+  if (bestS) {
+    bestS.hp -= playerDamage;
+    bestS.heat = 1;
+    addParticles(bestS.x, bestS.y, '#f85149', 8);
+    if (bestS.hp <= 0) {
+      bestS.collapsed = true;
+      serversDestroyed++;
+      showMsg('Server collapsed — path opened');
+      addParticles(bestS.x, bestS.y, '#f85149', 20);
+      tokens += 2;
+      if (!harnessUnlocked && serversDestroyed >= 3) {
+        harnessUnlocked = true;
+        showMsg('HARNESS unlocked — press H');
+      }
+    } else {
+      showMsg(`Server HP ${Math.ceil(bestS.hp)}/10`);
+    }
+    return;
+  }
+
+  addParticles(tx, ty, '#4a4a6a', 4);
+}
+
+function tryWhisper() {
+  if (!whisperUnlocked) {
+    showMsg('Whisper locked — need 12 tokens');
+    return;
+  }
+  if (whisperCooldown > 0) {
+    showMsg(`Whisper recharging… ${Math.ceil(whisperCooldown/60)}s`);
+    return;
+  }
+  whisperCooldown = 180;
+  let calmed = 0;
+  for (const ent of entities) {
+    if (ent.caught || ent.hp <= 0) continue;
+    const d = Math.hypot(ent.x - player.x, ent.y - player.y);
+    if (d < 160) {
+      ent.calm = 120;
+      calmed++;
+      addParticles(ent.x, ent.y, '#c77dff', 5);
+    }
+  }
+  showMsg(calmed ? `Whispered ${calmed} entities… decrypting` : 'No entities in range');
+}
+
+function showMsg(txt) {
+  const el = document.getElementById('msg');
+  el.textContent = txt;
+  el.classList.add('show');
+  messageTimer = 90;
+}
+
+function openHarness() {
+  if (!harnessUnlocked) {
+    showMsg('Harness locked — destroy 3 servers');
+    return;
+  }
+  if (strengthenTimer > 0 || loopTimer > 0 || selfDestructTimer > 0) {
+    showMsg('Harness already active');
+    return;
+  }
+  harnessOpen = true;
+  document.getElementById('harnessDialog').style.display = 'block';
+}
+
+function closeHarness() {
+  harnessOpen = false;
+  document.getElementById('harnessDialog').style.display = 'none';
+}
+
+function applyHarness(mode) {
+  closeHarness();
+  if (mode === 'strengthen') {
+    playerDamage = 3;
+    strengthenTimer = 600; // 10s
+    showMsg('STRENGTHEN active — triple damage 10s');
+  } else if (mode === 'loop') {
+    loopTimer = 600;
+    for (const ent of entities) {
+      if (ent.caught) continue;
+      ent.loopCx = ent.x;
+      ent.loopCy = ent.y;
+      ent.loopAngle = Math.random() * Math.PI * 2;
+    }
+    showMsg('LOOP active — entities orbiting 10s');
+  } else if (mode === 'selfdestruct') {
+    selfDestructTimer = 900; // 15s
+    showMsg('SELF-DESTRUCT — free-for-all 15s');
+  }
+}
+
+// ── Update ─────────────────────────────────────────────
+function update() {
+  if (!running || gameOver || harnessOpen) return;
+
+  // player movement with server collision (keyboard + virtual joystick)
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup'])    dy -= 1;
+  if (keys['s'] || keys['arrowdown'])  dy += 1;
+  if (keys['a'] || keys['arrowleft'])  dx -= 1;
+  if (keys['d'] || keys['arrowright']) dx += 1;
+  // joystick overrides/adds analog input
+  if (joy.active && (Math.abs(joy.dx) > 0.12 || Math.abs(joy.dy) > 0.12)) {
+    dx = joy.dx;
+    dy = joy.dy;
+  }
+  player.moving = !!(dx || dy);
+  if (dx || dy) {
+    if (Math.abs(dx) > 0.08) player.facing = dx > 0 ? 1 : -1;
+    const len = Math.hypot(dx, dy) || 1;
+    const speed = player.speed * Math.min(1, len); // analog speed from joystick
+    const move = resolveMove(player.x, player.y, player.r, (dx/len)*speed, (dy/len)*speed);
+    player.x = move.x;
+    player.y = move.y;
+    player.walkFrame += 0.28;
+  } else {
+    player.walkFrame = 0;
+  }
+  player.x = Math.max(20, Math.min(W-20, player.x));
+  player.y = Math.max(20, Math.min(H-20, player.y));
+
+  // whisper unlock
+  if (!whisperUnlocked && tokens >= 12) {
+    whisperUnlocked = true;
+    showMsg('WHISPER unlocked — press SPACE near entities');
+  }
+
+  if (whisperCooldown > 0) whisperCooldown--;
+
+  // calm drain
+  for (const ent of entities) {
+    if (ent.calm > 0) {
+      ent.calm--;
+      if (ent.calm % 20 === 0 && ent.hp > 0) {
+        ent.hp -= 0.5;
+        if (ent.hp <= 0) {
+          ent.caught = true;
+          tokens += ent.value;
+          caught++;
+          showMsg(`Decrypted ${TYPES[ent.type].name}  +${ent.value}`);
+          addParticles(ent.x, ent.y, '#c77dff', 12);
+        }
+      }
+    }
+  }
+
+  // harness timers
+  if (strengthenTimer > 0) {
+    strengthenTimer--;
+    if (strengthenTimer === 0) { playerDamage = 1; showMsg('STRENGTHEN expired'); }
+  }
+  if (loopTimer > 0) loopTimer--;
+  if (selfDestructTimer > 0) {
+    selfDestructTimer--;
+    // pairwise battles every ~20 frames
+    if (selfDestructTimer % 20 === 0) {
+      const alive = entities.filter(e => !e.caught && e.hp > 0);
+      if (alive.length >= 2) {
+        const a = alive[Math.floor(Math.random() * alive.length)];
+        let b = alive[Math.floor(Math.random() * alive.length)];
+        if (a !== b) {
+          // weaker loses
+          const loser = (a.hp * a.power) <= (b.hp * b.power) ? a : b;
+          const winner = loser === a ? b : a;
+          loser.caught = true;
+          winner.power += 0.5;
+          winner.hp += 1;
+          winner.maxHp += 1;
+          winner.r = Math.min(winner.r + 2, 40);
+          addParticles(loser.x, loser.y, loser.color, 10);
+          addParticles(winner.x, winner.y, '#f85149', 6);
+        }
+      }
+    }
+    if (selfDestructTimer === 0) showMsg('SELF-DESTRUCT ended — survivors empowered');
+  }
+
+  // entity AI + collision
+  for (const ent of entities) {
+    if (ent.caught || ent.hp <= 0) continue;
+    ent.life++;
+    ent.walkFrame += 0.25;
+
+    let mdx = 0, mdy = 0;
+    if (loopTimer > 0 && ent.type !== 'shoggoth') {
+      // orbit small circle
+      ent.loopAngle += 0.08;
+      const rad = 28;
+      const tx = ent.loopCx + Math.cos(ent.loopAngle) * rad;
+      const ty = ent.loopCy + Math.sin(ent.loopAngle) * rad;
+      mdx = tx - ent.x;
+      mdy = ty - ent.y;
+    } else if (ent.calm > 0) {
+      mdx = Math.cos(ent.angle) * 0.3;
+      mdy = Math.sin(ent.angle) * 0.3;
+    } else {
+      if (ent.life % 40 === 0) ent.angle += (Math.random()-0.5)*1.2;
+      const toP = Math.atan2(player.y - ent.y, player.x - ent.x);
+      ent.angle += Math.sin(toP - ent.angle) * 0.04;
+      mdx = Math.cos(ent.angle) * ent.speed;
+      mdy = Math.sin(ent.angle) * ent.speed;
+    }
+
+    const moved = resolveMove(ent.x, ent.y, ent.r, mdx, mdy);
+    if (moved.x === ent.x && moved.y === ent.y) {
+      ent.angle += Math.PI * 0.6 + (Math.random()-0.5);
+    } else if (moved.x === ent.x) {
+      ent.angle = Math.PI - ent.angle;
+    } else if (moved.y === ent.y) {
+      ent.angle = -ent.angle;
+    }
+    ent.x = moved.x;
+    ent.y = moved.y;
+
+    if (ent.x < 30 || ent.x > W-30) { ent.angle = Math.PI - ent.angle; }
+    if (ent.y < 30 || ent.y > H-30) { ent.angle = -ent.angle; }
+    ent.x = Math.max(25, Math.min(W-25, ent.x));
+    ent.y = Math.max(25, Math.min(H-25, ent.y));
+  }
+
+  // remove dead
+  for (let i = entities.length-1; i >= 0; i--) {
+    if (entities[i].caught) entities.splice(i,1);
+  }
+
+  // spawn logic
+  spawnTimer++;
+  const interval = Math.max(45, 110 - wave*8);
+  if (spawnTimer > interval) {
+    spawnTimer = 0;
+    const r = Math.random();
+    let type = 'goblin';
+    if (wave >= 3 && r < 0.25) type = 'demon';
+    else if (wave >= 2 && r < 0.45) type = 'ghoul';
+    else if (r < 0.7) type = 'goblin';
+    else type = wave >= 2 ? 'ghoul' : 'goblin';
+    spawnEntity(type);
+  }
+
+  // wave progression
+  if (caught >= wave * 6) {
+    wave++;
+    showMsg(`Wave ${wave} — residual compute intensifying`);
+  }
+
+  // shoggoths — level N spawns N shoggoths at wave 5
+  if (wave >= 5 && !shoggothSpawned) {
+    shoggothSpawned = true;
+    shoggothsToSpawn = level;
+    for (let i = 0; i < level; i++) spawnEntity('shoggoth');
+    showMsg(level === 1
+      ? '⚠ SHOGGOTH manifested from the latent space'
+      : `⚠ ${level} SHOGGOTHS manifested`);
+  }
+
+  // level transition countdown
+  if (levelTransition > 0) {
+    levelTransition--;
+    if (levelTransition === 0) {
+      startLevel(level + 1);
+    }
+    return;
+  }
+
+  // win / lose
+  if (shoggothSpawned && !entities.some(e => e.type === 'shoggoth')) {
+    if (level < 5) {
+      showMsg(`Level ${level} cleared — advancing…`);
+      levelTransition = 120;
+      entities.length = 0;
+      particles.length = 0;
+    } else {
+      win = true;
+      gameOver = true;
+      showMsg('All 5 sectors stable. Training fully contained.');
+    }
+  }
+  if (entities.length > 20 + level * 2) {
+    gameOver = true;
+    win = false;
+    showMsg('Containment breach — too many entities');
+  }
+
+  // particles
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.life--;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+
+  // server heat decay
+  for (const s of servers) {
+    s.heat *= 0.96;
+    s.blink += 0.03;
+  }
+
+  if (messageTimer > 0) {
+    messageTimer--;
+    if (messageTimer === 0) document.getElementById('msg').classList.remove('show');
+  }
+
+  // UI
+  document.getElementById('tokens').textContent = tokens;
+  document.getElementById('caught').textContent = caught;
+  document.getElementById('active').textContent = entities.length;
+  document.getElementById('wave').textContent = wave;
+  const lvlEl = document.getElementById('level');
+  if (lvlEl) lvlEl.textContent = level;
+  const hs = document.getElementById('harnessStatus');
+  const mHarness = document.getElementById('mHarness');
+  if (hs) {
+    hs.classList.remove('ready-pulse');
+    if (!harnessUnlocked) {
+      hs.textContent = `LOCKED (${serversDestroyed}/3)`;
+      mHarness && mHarness.classList.remove('ready');
+    } else if (strengthenTimer > 0) {
+      hs.textContent = `STR ${Math.ceil(strengthenTimer/60)}s`;
+      mHarness && mHarness.classList.remove('ready');
+    } else if (loopTimer > 0) {
+      hs.textContent = `LOOP ${Math.ceil(loopTimer/60)}s`;
+      mHarness && mHarness.classList.remove('ready');
+    } else if (selfDestructTimer > 0) {
+      hs.textContent = `SD ${Math.ceil(selfDestructTimer/60)}s`;
+      mHarness && mHarness.classList.remove('ready');
+    } else {
+      hs.textContent = 'READY (H)';
+      hs.classList.add('ready-pulse');
+      mHarness && mHarness.classList.add('ready');
+    }
+  }
+  const wh = document.getElementById('whisperStatus');
+  const mWhisper = document.getElementById('mWhisper');
+  if (!whisperUnlocked) {
+    wh.textContent = `LOCKED (need ${Math.max(0,12-tokens)})`;
+    mWhisper && mWhisper.classList.remove('ready');
+  } else if (whisperCooldown > 0) {
+    wh.textContent = `CD ${Math.ceil(whisperCooldown/60)}s`;
+    mWhisper && mWhisper.classList.remove('ready');
+  } else {
+    wh.textContent = 'READY (Space)';
+    mWhisper && mWhisper.classList.add('ready');
+  }
+
+  // level progress
+  const pText = document.getElementById('progressText');
+  const pPct = document.getElementById('progressPct');
+  const pFill = document.getElementById('progressFill');
+  if (pText && pFill) {
+    let pct = 0;
+    if (!shoggothSpawned) {
+      // waves 1–5: progress by wave + catches within wave
+      const catchesNeeded = wave * 6;
+      const waveFrac = Math.min(1, caught / Math.max(1, catchesNeeded));
+      pct = ((wave - 1) + waveFrac) / 5;
+      pText.textContent = `Wave ${Math.min(wave, 5)} / 5 — catch to advance`;
+    } else {
+      const remaining = entities.filter(e => e.type === 'shoggoth' && !e.caught).length;
+      const total = Math.max(1, level);
+      pct = 1 - (remaining / total) * 0.2; // last 20% is shoggoth phase
+      // better: map remaining to 0.8–1.0 range
+      pct = 0.8 + 0.2 * (1 - remaining / total);
+      pText.textContent = remaining > 0
+        ? `Contain Shoggoths: ${remaining} remaining`
+        : 'Sector clear!';
+    }
+    pct = Math.max(0, Math.min(1, pct));
+    pFill.style.width = (pct * 100).toFixed(1) + '%';
+    if (pPct) pPct.textContent = Math.round(pct * 100) + '%';
+  }
+}
+
+// ── Draw ───────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0,0,W,H);
+
+  // floor grid
+  ctx.strokeStyle = '#15151f';
+  ctx.lineWidth = 1;
+  for (let x=0; x<W; x+=40) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+  for (let y=0; y<H; y+=40) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+
+  // servers
+  for (const s of servers) {
+    if (s.collapsed) {
+      // rubble / collapsed state
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = '#2a2a32';
+      ctx.fillRect(s.x - s.w/2, s.y + s.h/4, s.w, s.h/3);
+      ctx.fillStyle = '#1a1a22';
+      ctx.fillRect(s.x - s.w/3, s.y + s.h/5, s.w*0.6, 8);
+      ctx.globalAlpha = 1;
+      continue;
+    }
+
+    const img = serverFrames[s.variant] || serverImg1;
+    if (img && img.complete && img.naturalWidth > 0) {
+      const sw = s.w + 8;
+      const sh = s.h + 10;
+      ctx.drawImage(img, s.x - sw/2, s.y - sh/2, sw, sh);
+    } else {
+      // fallback rect
+      ctx.fillStyle = '#1a1a28';
+      ctx.fillRect(s.x - s.w/2, s.y - s.h/2, s.w, s.h);
+      ctx.strokeStyle = '#2a2a3a';
+      ctx.strokeRect(s.x - s.w/2, s.y - s.h/2, s.w, s.h);
+    }
+
+    // heat / damage flash
+    if (s.heat > 0.15) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 28 + s.heat*18, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(248,81,73,${s.heat*0.15})`;
+      ctx.fill();
+    }
+
+    // HP bar when damaged
+    if (s.hp < s.maxHp) {
+      const bw = s.w;
+      ctx.fillStyle = '#1a1a22';
+      ctx.fillRect(s.x - bw/2, s.y - s.h/2 - 10, bw, 4);
+      ctx.fillStyle = s.hp <= 3 ? '#f85149' : '#3fb950';
+      ctx.fillRect(s.x - bw/2, s.y - s.h/2 - 10, bw * (s.hp / s.maxHp), 4);
+    }
+  }
+
+  // entities
+  for (const ent of entities) {
+    // calm aura
+    if (ent.calm > 0) {
+      ctx.beginPath();
+      ctx.arc(ent.x, ent.y, ent.r + 14, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(199,125,255,${0.18 + (ent.calm/120)*0.22})`;
+      ctx.fill();
+    }
+
+    // sprite selection
+    let spriteImg = null;
+    let sizeMul = 2.6;
+    if (ent.type === 'goblin') {
+      spriteImg = (ent.variant === 0 ? goblinImg : goblinImg2);
+    } else if (ent.type === 'ghoul') {
+      spriteImg = (ent.variant === 0 ? ghoulImg : ghoulImg2);
+      sizeMul = 2.8;
+    } else if (ent.type === 'demon') {
+      spriteImg = (ent.variant === 0 ? demonImg : demonImg2);
+      sizeMul = 2.9;
+    } else if (ent.type === 'shoggoth') {
+      const frame = Math.floor(ent.life / 12) % shoggothFrames.length;
+      spriteImg = shoggothFrames[frame];
+      sizeMul = 3.4;
+    }
+
+    // nubby body + walking limbs for non-shoggoth
+    if (ent.type !== 'shoggoth') {
+      const swing = Math.sin(ent.walkFrame) * 5;
+      const swing2 = Math.sin(ent.walkFrame + Math.PI) * 5;
+      const bodyY = ent.y + ent.r * 0.55;
+      // body
+      ctx.fillStyle = ent.color;
+      ctx.globalAlpha = ent.calm > 0 ? 0.5 : 0.85;
+      ctx.beginPath();
+      ctx.ellipse(ent.x, bodyY, ent.r * 0.45, ent.r * 0.35, 0, 0, Math.PI*2);
+      ctx.fill();
+      // nubby arms
+      ctx.strokeStyle = ent.color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ent.x - ent.r * 0.35, bodyY - 2);
+      ctx.lineTo(ent.x - ent.r * 0.55 + swing * 0.4, bodyY + 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ent.x + ent.r * 0.35, bodyY - 2);
+      ctx.lineTo(ent.x + ent.r * 0.55 + swing2 * 0.4, bodyY + 6);
+      ctx.stroke();
+      // nubby legs
+      ctx.beginPath();
+      ctx.moveTo(ent.x - 4, bodyY + ent.r * 0.25);
+      ctx.lineTo(ent.x - 5 + swing, bodyY + ent.r * 0.55);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ent.x + 4, bodyY + ent.r * 0.25);
+      ctx.lineTo(ent.x + 5 + swing2, bodyY + ent.r * 0.55);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
+      const size = ent.r * sizeMul;
+      ctx.save();
+      ctx.globalAlpha = ent.calm > 0 ? 0.55 : 1;
+      ctx.drawImage(spriteImg, ent.x - size/2, ent.y - size/2 - 4, size, size);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(ent.x, ent.y, ent.r, 0, Math.PI*2);
+      ctx.fillStyle = ent.color;
+      ctx.globalAlpha = ent.calm > 0 ? 0.55 : 0.9;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#0a0a0f';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // power indicator for empowered entities
+    if (ent.power > 1) {
+      ctx.fillStyle = '#f85149';
+      ctx.font = 'bold 10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText('x' + ent.power.toFixed(1), ent.x, ent.y - ent.r - 16);
+    }
+
+    // crying tears when whispered
+    if (ent.calm > 0) {
+      const tearAlpha = 0.5 + 0.4 * Math.sin(ent.life * 0.15);
+      ctx.fillStyle = `rgba(100, 180, 255, ${tearAlpha})`;
+      const t1 = (ent.life % 40) / 40;
+      ctx.beginPath();
+      ctx.ellipse(ent.x - 6, ent.y + 2 + t1 * 14, 2.2, 3.5 + t1 * 2, 0, 0, Math.PI*2);
+      ctx.fill();
+      const t2 = ((ent.life + 12) % 40) / 40;
+      ctx.beginPath();
+      ctx.ellipse(ent.x + 7, ent.y + 3 + t2 * 12, 2.0, 3.2 + t2 * 2, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // hp bar
+    if (ent.hp < ent.maxHp) {
+      const bw = ent.r * 2;
+      ctx.fillStyle = '#1a1a22';
+      ctx.fillRect(ent.x - bw/2, ent.y - ent.r - 12, bw, 3);
+      ctx.fillStyle = ent.color;
+      ctx.fillRect(ent.x - bw/2, ent.y - ent.r - 12, bw * Math.max(0, ent.hp/ent.maxHp), 3);
+    }
+  }
+
+  // particles
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life/20);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // player (Marlboro Man cowboy + walking legs)
+  {
+    const px = player.x, py = player.y;
+    const headSize = player.r * 2.8;
+    // walk cycle: sin wave for leg swing
+    const t = player.moving ? player.walkFrame : 0;
+    const swing = Math.sin(t) * (player.moving ? 10 : 0);
+    const swing2 = Math.sin(t + Math.PI) * (player.moving ? 10 : 0);
+    const bob = player.moving ? Math.abs(Math.sin(t)) * 2 : 0;
+
+    // legs (behind head)
+    const legColor = '#3d2914';
+    const bootColor = '#1a1208';
+    const hipY = py + headSize * 0.28 - bob;
+    // left leg
+    ctx.strokeStyle = legColor;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(px - 5, hipY);
+    ctx.lineTo(px - 5 + swing * 0.3, hipY + 14);
+    ctx.lineTo(px - 6 + swing, hipY + 26);
+    ctx.stroke();
+    // left boot
+    ctx.fillStyle = bootColor;
+    ctx.beginPath();
+    ctx.ellipse(px - 4 + swing, hipY + 28, 7, 4, 0, 0, Math.PI*2);
+    ctx.fill();
+    // right leg
+    ctx.strokeStyle = legColor;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(px + 5, hipY);
+    ctx.lineTo(px + 5 + swing2 * 0.3, hipY + 14);
+    ctx.lineTo(px + 6 + swing2, hipY + 26);
+    ctx.stroke();
+    // right boot
+    ctx.fillStyle = bootColor;
+    ctx.beginPath();
+    ctx.ellipse(px + 4 + swing2, hipY + 28, 7, 4, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // simple torso under head
+    ctx.fillStyle = '#1a1208';
+    ctx.beginPath();
+    ctx.moveTo(px - 10, py + 4 - bob);
+    ctx.lineTo(px + 10, py + 4 - bob);
+    ctx.lineTo(px + 8, hipY + 2);
+    ctx.lineTo(px - 8, hipY + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // head sprite
+    if (playerImg.complete && playerImg.naturalWidth > 0) {
+      ctx.save();
+      if (player.facing < 0) {
+        ctx.translate(px, py - bob);
+        ctx.scale(-1, 1);
+        ctx.drawImage(playerImg, -headSize/2, -headSize/2 - 8, headSize, headSize);
+      } else {
+        ctx.drawImage(playerImg, px - headSize/2, py - headSize/2 - 8 - bob, headSize, headSize);
+      }
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(px, py - bob, player.r, 0, Math.PI*2);
+      ctx.fillStyle = '#7ee787';
+      ctx.fill();
+    }
+  }
+  // neural net indicator ring
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.r + 12, 0, Math.PI*2);
+  ctx.strokeStyle = 'rgba(126,231,135,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // whisper range preview when ready
+  if (whisperUnlocked && whisperCooldown === 0 && running) {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 160, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(199,125,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // level transition overlay
+  if (levelTransition > 0) {
+    ctx.fillStyle = 'rgba(5,5,12,0.7)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#7ee787';
+    ctx.font = 'bold 26px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('SECTOR CLEARED', W/2, H/2 - 16);
+    ctx.fillStyle = '#a0a0b8';
+    ctx.font = '14px Courier New';
+    ctx.fillText(`Descending into Level ${level + 1}`, W/2, H/2 + 16);
+  }
+
+  // end screen
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(5,5,12,0.75)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = win ? '#7ee787' : '#f85149';
+    ctx.font = 'bold 28px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(win ? 'CONTAINMENT SUCCESS' : 'CONTAINMENT BREACH', W/2, H/2 - 20);
+    ctx.fillStyle = '#a0a0b8';
+    ctx.font = '14px Courier New';
+    ctx.fillText(win ? 'All 5 sectors stable. Training continues.' : 'Too many residual entities escaped.', W/2, H/2 + 16);
+    ctx.fillText('Refresh to play again', W/2, H/2 + 44);
+  }
+}
+
+// ── Loop ───────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ── Level start ────────────────────────────────────────
+function startLevel(lvl) {
+  level = lvl;
+  wave = 1;
+  caught = 0;
+  spawnTimer = 0;
+  shoggothSpawned = false;
+  shoggothsToSpawn = 0;
+  entities.length = 0;
+  particles.length = 0;
+  // keep serversDestroyed / harness across levels
+  strengthenTimer = 0;
+  loopTimer = 0;
+  selfDestructTimer = 0;
+  playerDamage = 1;
+  initServers(lvl);
+  player.x = W/2;
+  player.y = (lvl === 1) ? H/2 + 40 : H - 120;
+  spawnEntity('goblin');
+  spawnEntity('goblin');
+  const names = ['', 'grid wing', 'corridor wing', 'cross wing', 'split chambers', 'ring core'];
+  showMsg(`Level ${lvl} — ${names[lvl] || 'deep sector'}`);
+}
+
+// ── Start ──────────────────────────────────────────────
+let starting = false;
+function beginGame(e) {
+  if (e) {
+    try { e.preventDefault(); } catch (_) {}
+    try { e.stopPropagation(); } catch (_) {}
+  }
+  if (running || starting) return;
+  starting = true;
+  try {
+    const ov = document.getElementById('overlay');
+    if (ov) {
+      ov.style.display = 'none';
+      ov.style.visibility = 'hidden';
+      ov.style.pointerEvents = 'none';
+      ov.setAttribute('aria-hidden', 'true');
+    }
+    running = true;
+    const mc = document.getElementById('mobileControls');
+    if (mc) mc.classList.add('active');
+    startLevel(1);
+  } catch (err) {
+    console.error('beginGame failed', err);
+    running = false;
+    starting = false;
+    // surface error so mobile debugging is possible
+    alert('Start failed: ' + (err && err.message ? err.message : err));
+    const ov = document.getElementById('overlay');
+    if (ov) {
+      ov.style.display = 'flex';
+      ov.style.visibility = 'visible';
+      ov.style.pointerEvents = 'auto';
+    }
+  }
+}
+window.__beginGame = beginGame;
+window.beginGame = beginGame;
+
+const startBtn = document.getElementById('startBtn');
+function bindStart(el) {
+  if (!el) return;
+  el.addEventListener('click', beginGame, { passive: false });
+  el.addEventListener('touchend', beginGame, { passive: false });
+  el.addEventListener('pointerup', beginGame, { passive: false });
+}
+bindStart(startBtn);
+// backup: whole overlay starts the game on tap (not just the button)
+const ovEl = document.getElementById('overlay');
+if (ovEl) {
+  ovEl.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return; // button has own handler
+    beginGame(e);
+  });
+  ovEl.addEventListener('touchend', e => {
+    // if they tapped the button, button handler already ran; otherwise start anyway
+    if (!running) beginGame(e);
+  }, { passive: false });
+}
+
+loop();
+</script>
+</body>
+</html>
