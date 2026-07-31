@@ -133,6 +133,33 @@
     z-index: 5;
   }
   #msg.show { opacity: 1; }
+  #restartBtn {
+    display: none;
+    position: fixed;
+    left: 50%;
+    top: 64%;
+    transform: translate(-50%, -50%);
+    z-index: 35;
+    min-width: 230px;
+    padding: 14px 24px;
+    background: #1a1a28;
+    border: 2px solid #f85149;
+    color: #ffffff;
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    touch-action: manipulation;
+    box-shadow: 0 0 20px rgba(248,81,73,0.35);
+  }
+  #restartBtn.show { display: block; }
+  #restartBtn:hover,
+  #restartBtn:focus-visible {
+    background: #2a1a28;
+    border-color: #ff7b72;
+    outline: none;
+  }
 
   /* progress bar */
   #progressWrap {
@@ -302,6 +329,7 @@
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
   <div id="msg"></div>
+  <button id="restartBtn" type="button">RESTART</button>
 
   <div id="mobileControls">
     <div id="joystickBase">
@@ -976,6 +1004,7 @@ function loseLife(reason) {
     win = false;
     gameOverReason = reason || 'Marlboro Man lost all remaining lives.';
     resetAllUpgrades();
+    showRestartButton();
     showMsg('No lives remaining — containment failed');
     return true;
   }
@@ -1092,6 +1121,64 @@ function showMsg(txt) {
   el.textContent = txt;
   el.classList.add('show');
   messageTimer = 90;
+}
+
+function showRestartButton() {
+  const button = document.getElementById('restartBtn');
+  if (!button) return;
+  button.textContent = `RESTART ${gameMode.toUpperCase()} MODE`;
+  button.classList.add('show');
+}
+
+function hideRestartButton() {
+  const button = document.getElementById('restartBtn');
+  if (button) button.classList.remove('show');
+}
+
+function restartGame(e) {
+  if (e) {
+    try { e.preventDefault(); } catch (_) {}
+    try { e.stopPropagation(); } catch (_) {}
+  }
+  if (!gameOver || win) return;
+
+  tokens = 0;
+  totalTokensEarned = 0;
+  nextExtraLifeAt = 100;
+  lives = gameMode === 'hard' ? 1 : 3;
+  caught = 0;
+  wave = 1;
+  level = 1;
+  whisperUnlocked = false;
+  whisperCooldown = 0;
+  messageTimer = 0;
+  spawnTimer = 0;
+  shoggothSpawned = false;
+  shoggothsToSpawn = 0;
+  gameOver = false;
+  win = false;
+  gameOverReason = '';
+  levelTransition = 0;
+  serversDestroyed = 0;
+  harnessUnlocked = false;
+  harnessOpen = false;
+  playerDamage = 1;
+  strengthenTimer = 0;
+  loopTimer = 0;
+  selfDestructTimer = 0;
+  playerInvulnerability = 0;
+  mobileFireHeld = false;
+  mobileFirePointerId = null;
+  mobileFireCooldown = 0;
+  harnessSelectionIndex = 0;
+  harnessJoyLatched = false;
+  selectionInputLock = false;
+  for (const key of Object.keys(keys)) keys[key] = false;
+  resetJoy();
+  resetAllUpgrades();
+  document.getElementById('harnessDialog').style.display = 'none';
+  hideRestartButton();
+  startLevel(1);
 }
 
 function openHarness() {
@@ -1917,7 +2004,7 @@ function draw() {
     ctx.fillStyle = '#a0a0b8';
     ctx.font = '14px Courier New';
     ctx.fillText(win ? 'All 5 sectors stable. Training continues.' : (gameOverReason || 'All lives exhausted.'), W/2, H/2 + 16);
-    ctx.fillText('Refresh to play again', W/2, H/2 + 44);
+    ctx.fillText(win ? 'Refresh to play again' : 'Select RESTART to try again', W/2, H/2 + 44);
   }
 }
 
@@ -1970,6 +2057,7 @@ function beginGame(e, selectedMode = 'easy') {
     lives = gameMode === 'hard' ? 1 : 3;
     gameOverReason = '';
     resetAllUpgrades();
+    hideRestartButton();
     const ov = document.getElementById('overlay');
     if (ov) {
       ov.style.display = 'none';
@@ -2008,6 +2096,12 @@ function bindModeStart(el, mode) {
 }
 bindModeStart(easyModeBtn, 'easy');
 bindModeStart(hardModeBtn, 'hard');
+
+const restartBtn = document.getElementById('restartBtn');
+if (restartBtn) {
+  restartBtn.addEventListener('click', restartGame, { passive: false });
+  restartBtn.addEventListener('pointerup', restartGame, { passive: false });
+}
 
 loop();
 </script>
