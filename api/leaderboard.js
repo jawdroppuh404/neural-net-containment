@@ -52,6 +52,7 @@ module.exports = async function leaderboardHandler(req, res) {
       ]);
       return res.status(200).json({
         storage: 'shared',
+        provider: 'upstash',
         entries: parseEntries(results[0] && results[0].result)
       });
     }
