@@ -53,6 +53,11 @@
     text-align: center;
     padding: 40px;
     pointer-events: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   #overlay h1 {
     font-size: 28px;
@@ -84,6 +89,8 @@
     gap: 14px;
     justify-content: center;
     flex-wrap: wrap;
+    flex: 0 0 auto;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
   #modeOptions button {
     width: 230px;
@@ -243,6 +250,27 @@
   @media (hover: none), (max-width: 900px) {
     #ui, #progressWrap { width: 100%; max-width: 100vw; flex-wrap: wrap; gap: 4px; }
     canvas { width: 100vw !important; height: auto !important; max-height: 70vh; }
+  }
+  @media (max-height: 760px), (max-width: 600px) {
+    #overlay {
+      justify-content: flex-start;
+      padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
+    }
+    #overlay h1 {
+      font-size: 22px;
+      margin-top: 0;
+    }
+    #overlay p {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    #modeOptions {
+      width: 100%;
+    }
+    #modeOptions button {
+      width: min(100%, 280px);
+      flex: 0 0 auto;
+    }
   }
   /* only show mobile controls once the game is running AND on a touch / narrow layout */
   @media (hover: none), (max-width: 900px) {
