@@ -262,7 +262,8 @@
     <p>You are inside a server room training a frontier model.<br>
     Residual compute sometimes collapses into entities.</p>
     <p><b>Goblins</b> · <b>Ghouls</b> · <b>Demons</b> · and eventually a <b>Shoggoth</b>.</p>
-    <p>Move with <b>WASD</b> or arrows. Click to fire the neural net and catch them.<br>
+    <p>Move with <b>WASD</b> or arrows. Click to aim and fire the neural net.<br>
+    On mobile, the joystick sets your direction and <b>FIRE</b> shoots forward.<br>
     Each catch yields tokens. At 12 tokens you unlock <b>WHISPER</b> (Space).</p>
     <p class="hint">Whisper (Space) calms entities. Destroy 3 servers to unlock HARNESS (H).<br>
     5 levels · Level N ends with N Shoggoths. Servers are solid barriers.</p>
@@ -334,12 +335,16 @@ const player = {
   speed: 3.2,
   walkFrame: 0,
   moving: false,
-  facing: 1
+  facing: 1,
+  facingX: 1,
+  facingY: 0,
+  facingAngle: 0
 };
 
 const keys = {};
 const entities = [];
 const particles = [];
+const projectiles = [];
 const servers = [];
 
 // ── Servers layout ─────────────────────────────────────
@@ -641,14 +646,7 @@ const mHarnessBtn = document.getElementById('mHarness');
 if (mFire) mFire.addEventListener('click', e => {
   e.preventDefault();
   if (!running || gameOver || harnessOpen) return;
-  let best = null, bestD = 9999;
-  for (const ent of entities) {
-    if (ent.caught || ent.hp <= 0) continue;
-    const d = Math.hypot(ent.x - player.x, ent.y - player.y);
-    if (d < bestD) { bestD = d; best = ent; }
-  }
-  if (best) fireNet(best.x, best.y);
-  else fireNet(player.x + player.facing * 40, player.y);
+  fireForward();
 });
 if (mWhisper) mWhisper.addEventListener('click', e => {
   e.preventDefault();
@@ -662,55 +660,65 @@ if (mHarnessBtn) mHarnessBtn.addEventListener('click', e => {
 });
 
 // ── Actions ────────────────────────────────────────────
+function setPlayerFacing(dx, dy) {
+  const len = Math.hypot(dx, dy);
+  if (len < 0.08) return;
+  player.facingX = dx / len;
+  player.facingY = dy / len;
+  player.facingAngle = Math.atan2(player.facingY, player.facingX);
+  if (Math.abs(player.facingX) > 0.08) {
+    player.facing = player.facingX > 0 ? 1 : -1;
+  }
+}
+
+function fireForward() {
+  const muzzleDistance = player.r + 10;
+  const speed = 9;
+  projectiles.push({
+    x: player.x + player.facingX * muzzleDistance,
+    y: player.y + player.facingY * muzzleDistance,
+    vx: player.facingX * speed,
+    vy: player.facingY * speed,
+    r: 5,
+    damage: playerDamage,
+    life: 100
+  });
+}
+
 function fireNet(tx, ty) {
-  // prefer entities first
-  let best = null, bestD = 55;
-  for (const ent of entities) {
-    if (ent.caught || ent.hp <= 0) continue;
-    const d = Math.hypot(ent.x - tx, ent.y - ty);
-    if (d < bestD) { bestD = d; best = ent; }
-  }
-  if (best) {
-    best.hp -= playerDamage;
-    addParticles(best.x, best.y, best.color, 6);
-    if (best.hp <= 0) {
-      best.caught = true;
-      tokens += best.value;
-      caught++;
-      showMsg(`Caught ${TYPES[best.type].name}  +${best.value} tokens`);
-      addParticles(best.x, best.y, best.color, 14);
-    }
-    return;
-  }
+  setPlayerFacing(tx - player.x, ty - player.y);
+  fireForward();
+}
 
-  // otherwise try to hit a server
-  let bestS = null, bestSD = 40;
-  for (const s of servers) {
-    if (s.collapsed) continue;
-    const d = Math.hypot(s.x - tx, s.y - ty);
-    if (d < bestSD) { bestSD = d; bestS = s; }
+function damageEntity(ent, damage) {
+  ent.hp -= damage;
+  addParticles(ent.x, ent.y, ent.color, 6);
+  if (ent.hp <= 0) {
+    ent.caught = true;
+    tokens += ent.value;
+    caught++;
+    showMsg(`Caught ${TYPES[ent.type].name}  +${ent.value} tokens`);
+    addParticles(ent.x, ent.y, ent.color, 14);
   }
-  if (bestS) {
-    bestS.hp -= playerDamage;
-    bestS.heat = 1;
-    addParticles(bestS.x, bestS.y, '#f85149', 8);
-    if (bestS.hp <= 0) {
-      bestS.collapsed = true;
-      serversDestroyed++;
-      showMsg('Server collapsed — path opened');
-      addParticles(bestS.x, bestS.y, '#f85149', 20);
-      tokens += 2;
-      if (!harnessUnlocked && serversDestroyed >= 3) {
-        harnessUnlocked = true;
-        showMsg('HARNESS unlocked — press H');
-      }
-    } else {
-      showMsg(`Server HP ${Math.ceil(bestS.hp)}/10`);
-    }
-    return;
-  }
+}
 
-  addParticles(tx, ty, '#4a4a6a', 4);
+function damageServer(server, damage) {
+  server.hp -= damage;
+  server.heat = 1;
+  addParticles(server.x, server.y, '#f85149', 8);
+  if (server.hp <= 0) {
+    server.collapsed = true;
+    serversDestroyed++;
+    showMsg('Server collapsed — path opened');
+    addParticles(server.x, server.y, '#f85149', 20);
+    tokens += 2;
+    if (!harnessUnlocked && serversDestroyed >= 3) {
+      harnessUnlocked = true;
+      showMsg('HARNESS unlocked — press H');
+    }
+  } else {
+    showMsg(`Server HP ${Math.ceil(server.hp)}/${server.maxHp}`);
+  }
 }
 
 function tryWhisper() {
@@ -799,7 +807,7 @@ function update() {
   }
   player.moving = !!(dx || dy);
   if (dx || dy) {
-    if (Math.abs(dx) > 0.08) player.facing = dx > 0 ? 1 : -1;
+    setPlayerFacing(dx, dy);
     const len = Math.hypot(dx, dy) || 1;
     const speed = player.speed * Math.min(1, len); // analog speed from joystick
     const move = resolveMove(player.x, player.y, player.r, (dx/len)*speed, (dy/len)*speed);
@@ -811,6 +819,42 @@ function update() {
   }
   player.x = Math.max(20, Math.min(W-20, player.x));
   player.y = Math.max(20, Math.min(H-20, player.y));
+
+  // projectiles damage the first entity or intact server they touch
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+
+    let hit = false;
+    for (const ent of entities) {
+      if (ent.caught || ent.hp <= 0) continue;
+      if (Math.hypot(ent.x - p.x, ent.y - p.y) <= ent.r + p.r) {
+        damageEntity(ent, p.damage);
+        hit = true;
+        break;
+      }
+    }
+
+    if (!hit) {
+      for (const server of servers) {
+        if (server.collapsed) continue;
+        const halfW = server.w / 2 + p.r;
+        const halfH = server.h / 2 + p.r;
+        if (Math.abs(p.x - server.x) <= halfW &&
+            Math.abs(p.y - server.y) <= halfH) {
+          damageServer(server, p.damage);
+          hit = true;
+          break;
+        }
+      }
+    }
+
+    if (hit || p.life <= 0 || p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10) {
+      projectiles.splice(i, 1);
+    }
+  }
 
   // whisper unlock
   if (!whisperUnlocked && tokens >= 12) {
@@ -1243,6 +1287,24 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  // neural-net projectiles
+  for (const p of projectiles) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(126,231,135,0.35)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(p.x - p.vx * 1.8, p.y - p.vy * 1.8);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.fillStyle = '#7ee787';
+    ctx.shadowColor = '#7ee787';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // player (Marlboro Man cowboy + walking legs)
   {
     const px = player.x, py = player.y;
@@ -1320,6 +1382,33 @@ function draw() {
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // persistent facing marker — follows joystick, keyboard, mouse, or touch aim
+  {
+    const markerStart = player.r + 10;
+    const markerEnd = player.r + 28;
+    const sx = player.x + player.facingX * markerStart;
+    const sy = player.y + player.facingY * markerStart;
+    const ex = player.x + player.facingX * markerEnd;
+    const ey = player.y + player.facingY * markerEnd;
+    ctx.save();
+    ctx.strokeStyle = '#7ee787';
+    ctx.fillStyle = '#7ee787';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.translate(ex, ey);
+    ctx.rotate(player.facingAngle);
+    ctx.beginPath();
+    ctx.moveTo(6, 0);
+    ctx.lineTo(-4, -4);
+    ctx.lineTo(-4, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   // whisper range preview when ready
   if (whisperUnlocked && whisperCooldown === 0 && running) {
     ctx.beginPath();
@@ -1374,6 +1463,7 @@ function startLevel(lvl) {
   shoggothsToSpawn = 0;
   entities.length = 0;
   particles.length = 0;
+  projectiles.length = 0;
   // keep serversDestroyed / harness across levels
   strengthenTimer = 0;
   loopTimer = 0;
@@ -1382,6 +1472,7 @@ function startLevel(lvl) {
   initServers(lvl);
   player.x = W/2;
   player.y = (lvl === 1) ? H/2 + 40 : H - 120;
+  setPlayerFacing(0, -1);
   spawnEntity('goblin');
   spawnEntity('goblin');
   const names = ['', 'grid wing', 'corridor wing', 'cross wing', 'split chambers', 'ring core'];
