@@ -408,8 +408,16 @@
   }
   @media (max-height: 760px), (max-width: 600px) {
     #msg {
-      bottom: 172px;
+      position: relative;
+      left: auto;
+      bottom: auto;
+      transform: none;
       width: min(420px, calc(100vw - 40px));
+      min-height: 32px;
+      margin: 4px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
     }
     #overlay {
@@ -443,12 +451,12 @@
     <div class="stat"><span class="label">TOKENS</span><span class="value" id="tokens">0</span></div>
     <div class="stat"><span class="label">HP</span><span class="value warn" id="playerHp">100/100</span></div>
     <div class="stat"><span class="label">LIVES</span><span class="value" id="lives">3</span></div>
-    <div class="stat"><span class="label">BLASTER</span><span class="value whisper" id="blasterStatus">HIDDEN</span></div>
-    <div class="stat"><span class="label">RAM</span><span class="value" id="ramStatus">0 · 100%</span></div>
+    <div class="stat"><span class="label">RAM</span><span class="value" id="ramStatus">16 GB</span></div>
     <div class="stat"><span class="label">WHISPER</span><span class="value whisper" id="whisperStatus">LOCKED (need 12)</span></div>
     <div class="stat"><span class="label">HARNESS</span><span class="value whisper" id="harnessStatus">LOCKED</span></div>
   </div>
   <canvas id="c" width="900" height="560"></canvas>
+  <div id="msg"></div>
   <div id="progressWrap">
     <div id="progressLabel">
       <span id="progressText">Wave 1 / 5</span>
@@ -456,7 +464,6 @@
     </div>
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
-  <div id="msg"></div>
   <div id="leaderboardEntry" role="dialog" aria-modal="true" aria-labelledby="leaderboardEntryTitle">
     <h2 id="leaderboardEntryTitle">HARD MODE RECORD</h2>
     <p id="leaderboardEntrySummary">You cleared 0 levels. Enter a nickname for the leaderboard.</p>
@@ -552,7 +559,7 @@ let paused = false;
 let gameMode = 'easy';
 let tokens = 0;
 let totalTokensEarned = 0;
-let nextExtraLifeAt = 100;
+let nextExtraLifeAt = 200;
 let lives = 3;
 let caught = 0;
 let wave = 1;
@@ -586,6 +593,7 @@ let hardLevelsCompleted = 0;
 let leaderboardSubmitted = false;
 const HARNESS_COSTS = { strengthen: 20, loop: 30, selfdestruct: 50 };
 const BASE_PLAYER_SPEED = 3.2;
+const BASE_RAM_GB = 16;
 
 const player = {
   x: W/2, y: H/2,
@@ -1225,7 +1233,7 @@ function awardTokens(amount) {
   while (totalTokensEarned >= nextExtraLifeAt) {
     lives++;
     extraLives++;
-    nextExtraLifeAt += 100;
+    nextExtraLifeAt += 200;
   }
   if (extraLives > 0) {
     showMsg(`EXTRA LIFE — ${lives} lives remaining`);
@@ -1241,7 +1249,7 @@ function spendTokens(amount) {
 function applyRamUpgrade() {
   ramUpgrades++;
   player.speed = BASE_PLAYER_SPEED * Math.pow(1.05, ramUpgrades);
-  showMsg(`RAM ACQUIRED — speed ${Math.round(Math.pow(1.05, ramUpgrades) * 100)}%`);
+  showMsg(`RAM ACQUIRED — ${BASE_RAM_GB * (ramUpgrades + 1)} GB`);
 }
 
 function resetAllUpgrades() {
@@ -1392,7 +1400,7 @@ function damageServer(server, damage) {
     }
     if (server.hasRamUpgrade && !ramPickup) {
       ramPickup = { x: server.x, y: server.y, r: 12, pulse: 0 };
-      showMsg('RAM REVEALED — collect for +5% speed');
+      showMsg('RAM REVEALED — collect for +16 GB');
     }
     if (server.hasShieldUpgrade && !shieldPickup) {
       shieldPickup = { x: server.x, y: server.y, r: 14, pulse: 0 };
@@ -1594,7 +1602,7 @@ function restartGame(e) {
 
   tokens = 0;
   totalTokensEarned = 0;
-  nextExtraLifeAt = 100;
+  nextExtraLifeAt = 200;
   lives = gameMode === 'hard' ? 1 : 3;
   caught = 0;
   wave = 1;
@@ -2030,15 +2038,11 @@ function update() {
   document.getElementById('tokens').textContent = tokens;
   document.getElementById('playerHp').textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
   document.getElementById('lives').textContent = lives;
-  const blasterStatus = document.getElementById('blasterStatus');
-  if (blasterStatus) {
-    blasterStatus.textContent = blasterUpgraded ? 'PURPLE x2' : (blasterPickup ? 'REVEALED' : 'HIDDEN');
-  }
   const modeStatus = document.getElementById('modeStatus');
   if (modeStatus) modeStatus.textContent = gameMode.toUpperCase();
   const ramStatus = document.getElementById('ramStatus');
   if (ramStatus) {
-    ramStatus.textContent = `${ramUpgrades} · ${Math.round(Math.pow(1.05, ramUpgrades) * 100)}%`;
+    ramStatus.textContent = `${BASE_RAM_GB * (ramUpgrades + 1)} GB`;
   }
   const shieldStatus = document.getElementById('shieldStatus');
   if (shieldStatus) {
@@ -2232,7 +2236,7 @@ function draw() {
     ctx.fillStyle = '#7ee787';
     ctx.font = 'bold 9px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText('RAM +5%', ramPickup.x, ramPickup.y - 19);
+    ctx.fillText('RAM +16 GB', ramPickup.x, ramPickup.y - 19);
   }
 
   // Revealed shield — grants 15 seconds of total protection.
