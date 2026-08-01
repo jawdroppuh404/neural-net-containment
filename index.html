@@ -270,6 +270,99 @@
     z-index: 5;
   }
   #msg.show { opacity: 1; }
+  #siteFooter {
+    position: fixed;
+    left: 50%;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 42;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #siteFooter a,
+  #tipLink {
+    padding: 2px 6px;
+    border: 0;
+    background: transparent;
+    color: #7ee787;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #siteFooter a:hover,
+  #siteFooter a:focus-visible,
+  #tipLink:hover,
+  #tipLink:focus-visible {
+    color: #f0abfc;
+    outline: 1px solid currentColor;
+    outline-offset: 2px;
+  }
+  #tipModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(5, 5, 12, 0.86);
+  }
+  #tipModal.show { display: flex; }
+  #tipCard {
+    position: relative;
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    padding: 24px;
+    background: #12121a;
+    border: 2px solid #f0abfc;
+    box-shadow: 0 0 28px rgba(217, 70, 239, 0.4);
+    text-align: center;
+  }
+  #tipCard h2 {
+    color: #f0abfc;
+    font-size: 17px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  #tipCard p {
+    color: #a0a0b8;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  #tipQr {
+    display: block;
+    width: min(320px, 70vw);
+    height: auto;
+    margin: 14px auto 0;
+    background: #fff;
+  }
+  #tipClose {
+    position: absolute;
+    top: 7px;
+    right: 9px;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #5a5a8a;
+    background: #1a1a28;
+    color: #c0c0d0;
+    font: bold 17px/1 'Courier New', monospace;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #tipClose:hover,
+  #tipClose:focus-visible {
+    border-color: #f0abfc;
+    color: #f0abfc;
+    outline: none;
+  }
   #restartBtn {
     display: none;
     position: fixed;
@@ -487,6 +580,18 @@
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
   <div id="msg"></div>
+  <footer id="siteFooter" aria-label="Site links">
+    <a href="https://jawdroppuh.lol/" target="_blank" rel="noopener">jawdroppuh.lol</a>
+    <button id="tipLink" type="button">leave me a tip</button>
+  </footer>
+  <div id="tipModal" role="dialog" aria-modal="true" aria-labelledby="tipTitle" aria-hidden="true">
+    <div id="tipCard">
+      <button id="tipClose" type="button" aria-label="Close tip window">×</button>
+      <h2 id="tipTitle">LEAVE ME A TIP</h2>
+      <p>Scan the code to leave a tip.</p>
+      <img id="tipQr" src="tip-qr.jpeg" alt="QR code to leave a tip">
+    </div>
+  </div>
   <div id="leaderboardEntry" role="dialog" aria-modal="true" aria-labelledby="leaderboardEntryTitle">
     <h2 id="leaderboardEntryTitle">HARD MODE RECORD</h2>
     <p id="leaderboardEntrySummary">You cleared 0 levels. Enter a nickname for the leaderboard.</p>
@@ -2759,6 +2864,48 @@ if (leaderboardNickname) {
   });
   leaderboardNickname.addEventListener('keyup', event => event.stopPropagation());
 }
+
+const tipLink = document.getElementById('tipLink');
+const tipModal = document.getElementById('tipModal');
+const tipClose = document.getElementById('tipClose');
+
+function setTipModalOpen(open) {
+  if (!tipModal) return;
+  tipModal.classList.toggle('show', open);
+  tipModal.setAttribute('aria-hidden', String(!open));
+  if (open) {
+    if (tipClose) tipClose.focus();
+  } else if (tipLink) {
+    tipLink.focus();
+  }
+}
+
+if (tipLink) {
+  tipLink.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    setTipModalOpen(true);
+  });
+}
+if (tipClose) {
+  tipClose.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    setTipModalOpen(false);
+  });
+}
+if (tipModal) {
+  tipModal.addEventListener('click', event => {
+    if (event.target === tipModal) setTipModalOpen(false);
+  });
+}
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && tipModal && tipModal.classList.contains('show')) {
+    event.preventDefault();
+    event.stopPropagation();
+    setTipModalOpen(false);
+  }
+});
 
 loadLeaderboard();
 loop();
